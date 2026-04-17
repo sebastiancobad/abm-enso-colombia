@@ -34,6 +34,8 @@ dependencies:
   - plotly>=5.18
   - ipywidgets>=8.1
   - pillow>=10.1
+  - imageio>=2.34
+  - imageio-ffmpeg>=0.4
 
   # ----- APIs -----
   - sodapy>=2.2

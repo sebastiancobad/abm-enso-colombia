@@ -1,99 +1,79 @@
-# Fundamentos del ABM
+# Fundamentos teóricos
 
-## ¿Qué es un agente?
+## El Niño Southern Oscillation (ENSO)
 
-Un **agente** es una entidad que percibe su entorno y actúa sobre él de forma autónoma. La literatura (Macal & North 2009; Wooldridge & Jennings 1995) consensua seis propiedades operacionales:
+El ENSO es la principal fuente de variabilidad climática interanual en el trópico. Se caracteriza por oscilaciones en la temperatura superficial del Pacífico ecuatorial entre tres fases:
 
-### 1. Autónomo
+- **El Niño** — fase cálida (ONI > +0.5 °C)
+- **La Niña** — fase fría (ONI < −0.5 °C)
+- **Neutro** — entre ambos
 
-Toma decisiones sin control central. Cada agente tiene su propia lógica interna; ninguna entidad superior los dirige.
+En Colombia, la respuesta hidroclimática es **anticorrelacionada** al ONI:
 
-### 2. Social
+| Fase | Efecto en Colombia |
+|------|--------------------|
+| El Niño | Sequía, déficit de lluvia, riesgo de incendios |
+| La Niña | Excesos de lluvia, inundaciones, remociones en masa |
 
-Interactúa con otros agentes. Las interacciones son **locales** — limitadas al vecindario o red de contactos, nunca globales.
+Esta anticorrelación aparece como $\beta_1 < 0$ en la ecuación del modelo (−7.33 mm/mes/°C ONI a escala nacional).
 
-### 3. Situado
+## Oscilador de Lorenz como proxy ENSO
 
-Percibe y actúa en su entorno local. Su comportamiento depende de su posición y su contexto, no del estado global del sistema.
+Aunque el ENSO real se modela con sistemas acoplados océano-atmósfera (ZC, Jin-Timmermann, etc.), el sistema de Lorenz (1963) captura las propiedades estadísticas esenciales:
 
-### 4. Adaptativo *(opcional)*
+- Pseudo-periodicidad (~4.6 años tras calibración)
+- Sensibilidad a condiciones iniciales
+- Régimen caótico determinista
+- Estacionariedad estadística
 
-Puede modificar su comportamiento basándose en experiencias pasadas. Esta propiedad es opcional — agrega complejidad, y no todos los ABM la implementan.
+Esto permite generar series ONI sintéticas infinitamente largas para proyecciones y análisis de sensibilidad, algo que no se puede hacer con los datos observados (limitados a 1950–presente).
 
-### 5. Con recursos
+## Modelos basados en agentes (ABM)
 
-Posee atributos que evolucionan en el tiempo (energía, capital, información, humedad acumulada). Esos recursos restringen y habilitan sus acciones.
+Un ABM representa un sistema como un conjunto de entidades (agentes) autónomas que interactúan en cada paso temporal. En este modelo:
 
-### 6. Heterogéneo
+- **Agente:** cada cuenca hidrográfica (N = 231)
+- **Entorno:** serie temporal ONI común a todas
+- **Tiempo:** pasos mensuales
+- **Regla local:** ecuación de balance hídrico + umbral de activación
+- **Interacción:** ninguna inter-agente (Modelo 1 puro clima)
 
-Cada instancia puede tener atributos distintos. Esta diferencia entre agentes **no puede capturarse en una ecuación de campo medio** — es precisamente lo que motiva el uso de ABM.
+**Ventajas sobre una regresión directa:**
 
-## ¿Cuándo se usa ABM?
+1. Heterogeneidad explícita por área hidrográfica
+2. Memoria (H(t) persiste tick a tick)
+3. No-linealidad del umbral (evento = sí/no, no gradiente)
+4. Reproducibilidad con `seed` + posibilidad de Monte Carlo con ruido
 
-Un ABM tiene mayor costo computacional que una ecuación diferencial ordinaria (EDO). Se justifica cuando el sistema tiene al menos una de las siguientes características:
+## Scheduler simultáneo
 
-| Señal en el sistema | Por qué la EDO falla |
-|---|---|
-| **Atributos heterogéneos** | Las EDO promedian; pierden la varianza individual |
-| **Interacción local** | Las EDO asumen mezcla perfecta |
-| **Propiedades emergentes** | No se deducen de reglas micro — hay que simular |
-| **Reglas adaptativas** | Las EDO no acomodan aprendizaje fácilmente |
-| **Dinámica fuera de equilibrio** | Las trayectorias transitorias importan |
+Mesa 3.x descartó los schedulers clásicos (`SimultaneousActivation`). El scheduler simultáneo se implementa manualmente:
 
-## ABM vs. EDO — una comparación formal
-
-| Dimensión | EDO | Modelo Basado en Agentes |
-|---|---|---|
-| Ontología | Variables continuas de población | Agentes discretos individuales |
-| Mezcla | Perfecta — todos con todos | Local — solo vecinos conectados |
-| Heterogeneidad | Ninguna | Cada agente tiene atributos únicos |
-| Equilibrio | Analítico: $dI/dt = 0$ da $I^*$ | Numérico — requiere réplicas |
-| Estocasticidad | Determinístico | Estocástico — distribuye resultados |
-| Convergencia | Exacta (campo medio) | ABM → EDO si agentes idénticos |
-
-## El ciclo de ejecución
-
-Todo ABM, independientemente de la plataforma (NetLogo, Mesa, Repast, MASON), ejecuta el mismo ciclo:
-
-```
-┌────────────┐
-│ INICIALIZAR│   una sola vez, t = 0
-└─────┬──────┘
-      ▼
-┌────────────┐
-│   ACTUAR   │ ◀─────┐
-│ percibir   │       │
-│ decidir    │       │
-│ ejecutar   │       │
-└─────┬──────┘       │
-      ▼              │
-┌────────────┐       │
-│ ACTUALIZAR │       │ t ← t + 1
-│  entorno   │       │
-└─────┬──────┘       │
-      ▼              │
-┌────────────┐       │
-│  REGISTRAR │ ──────┘
-│  métricas  │
-└────────────┘
+```python
+# Dos fases dentro del mismo step():
+self.agents.do("compute_next_state")  # todos leen H(t), calculan H(t+1)
+self.agents.do("apply_next_state")     # todos escriben H(t+1)
 ```
 
-El **calendarizador (scheduler)** determina el orden de activación de los agentes y afecta directamente el resultado:
+Esto es crítico cuando se introducen interacciones entre agentes (Fases futuras), porque garantiza que una cuenca no "ve" el estado ya actualizado de sus vecinas dentro del mismo tick.
 
-- **Activación aleatoria** — cada tick un agente distinto actúa primero. Dos corridas con misma semilla pueden dar resultados distintos si el orden cambia.
-- **Activación simultánea** — todos evalúan antes de que cualquiera actúe. Tiempo discreto sincrónico.
+## Validación
 
-## Aplicación al Modelo 1
+El modelo se valida contra dos fuentes:
 
-En este proyecto, el agente es la **cuenca hidrográfica**, y las seis propiedades se materializan así:
+### SIMMA (Servicio Geológico Colombiano)
 
-| Propiedad | Realización en `CuencaAgent` |
-|---|---|
-| Autónomo | Cada cuenca calcula su propio $H(t+1)$ sin supervisión central |
-| Social | Interacción via forzamiento ONI compartido (no hay red de cuencas en v0.1.0) |
-| Situado | Atributos dependen de ubicación (tipo de suelo, climatología local) |
-| Adaptativo | **No implementado** en v0.1.0 (extensión futura: aprendizaje por refuerzo) |
-| Con recursos | `humedad_acumulada`, `capacidad_hidrica` |
-| Heterogéneo | $\beta_1$, $\theta$, $\kappa$ varían entre cuencas según tipo de suelo |
+Sistema de Información de Movimientos en Masa — 6826 eventos de deslizamientos, flujos y caídas documentados entre 1981 y 2024. Usamos la tasa mensual como ground truth binario: mes con evento = mes con ≥5 reportes SIMMA.
 
-Ver [Protocolo ODD](odd.md) para la especificación formal completa.
+**Resultado:** F1 = 0.629 sobre los 528 meses de datos ERA5.
+
+### Validación independiente 2010-2012
+
+Período de La Niña extrema. El modelo reproduce la escalada de activaciones en 2011 con r = 0.43 y F1 = 0.74.
+
+## Limitaciones
+
+- **$r^2$ modesto (0.176) del OLS global** — promediar Colombia entera mezcla regiones con respuestas opuestas. La heterogeneidad por área mitiga parcialmente esto.
+- **Sin dinámica de suelos** — κ es un parámetro global, no depende del tipo de suelo (arcilloso vs arenoso). Mejorable con mapa IGAC 1:100k.
+- **Sin precipitación granular** — P(t) se modela con climatología + anomalía por ONI, no con precipitación observada por cuenca. Mejora futura: reemplazar ERA5 nacional por CHIRPS 0.05° por cuenca.
+- **Lorenz no imita en fase** — r(Lorenz, ONI) = 0.042. El atractor **sustituye** el forzamiento, no lo predice.

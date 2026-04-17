@@ -48,7 +48,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_sim.add_argument("--validar", action="store_true",
                        help="Validar resultados vs SIMMA 2010-2012 (solo escenario historico)")
 
-    sub.add_parser("viz", help="Abrir la app Solara (tipo NetLogo)")
+    sub.add_parser("viz", help="Abrir la app Solara interactiva (tipo NetLogo)")
+    p_viz = sub.choices["viz"]
+    p_viz.add_argument("--host", default="127.0.0.1")
+    p_viz.add_argument("--port", type=int, default=8765)
+    p_viz.add_argument("--no-browser", action="store_true",
+                       help="No abrir navegador automáticamente")
 
     return parser
 
@@ -87,9 +92,35 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
-    # TODO (Fase 5): despachar al servidor Solara
+    if args.command == "viz":
+        import subprocess
+        from pathlib import Path
+        from abm_enso import viz as viz_pkg
+
+        app_path = Path(viz_pkg.__file__).parent / "app.py"
+        cmd = [
+            "solara", "run", str(app_path),
+            "--host", args.host,
+            "--port", str(args.port),
+        ]
+        if args.no_browser:
+            cmd.append("--no-open")
+
+        url = f"http://{args.host}:{args.port}"
+        print(f"[abm-enso] Iniciando visualizador Solara...")
+        print(f"[abm-enso] URL: {url}")
+        print(f"[abm-enso] Presiona Ctrl+C para detener")
+        try:
+            subprocess.run(cmd, check=True)
+        except KeyboardInterrupt:
+            print("\n[abm-enso] Detenido por el usuario")
+        except FileNotFoundError:
+            print("[abm-enso] ERROR: comando 'solara' no encontrado.")
+            print("[abm-enso] Instala con: pip install solara")
+            return 1
+        return 0
+
     print(f"[abm-enso] comando reconocido: {args.command}")
-    print("[abm-enso] implementación pendiente — ver roadmap en README.md")
     return 0
 
 

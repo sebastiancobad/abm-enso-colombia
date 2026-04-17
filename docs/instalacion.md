@@ -1,119 +1,84 @@
 # Instalación
 
-## Requisitos de sistema
-
-- Python ≥ 3.11
-- ~2 GB de espacio en disco (datos + dependencias geoespaciales)
-- Conexión a internet para la descarga inicial de datos
-
-En Linux y macOS la instalación es directa. En Windows se recomienda usar **Miniforge** o **WSL2** por las dependencias geoespaciales (`gdal`, `rasterio`, `geopandas`), que son difíciles de compilar desde `pip` en Windows puro.
-
-## Paso 1 — Clonar el repo
+## Opción 1: conda (recomendado para Windows/Mac/Linux)
 
 ```bash
 git clone https://github.com/sebastiancobad/abm-enso-colombia.git
 cd abm-enso-colombia
-```
-
-## Paso 2 — Crear entorno virtual
-
-### Opción A: `venv` (Python estándar)
-
-```bash
-python -m venv .venv
-source .venv/bin/activate        # Linux/macOS
-# .venv\Scripts\activate         # Windows PowerShell
-```
-
-### Opción B: `conda` / `mamba` (recomendado para Windows)
-
-```bash
-mamba create -n abm-enso python=3.11 gdal geopandas rasterio -c conda-forge
-mamba activate abm-enso
-```
-
-Conda resuelve los binarios GDAL/GEOS sin necesidad de compilar.
-
-## Paso 3 — Instalar el paquete
-
-### Opción recomendada (Windows/macOS/Linux): conda con `environment.yml`
-
-Esta es **la forma más robusta** de instalar, especialmente en Windows, porque conda-forge trae binarios pre-compilados de GDAL, GEOS y PROJ:
-
-```bash
 conda env create -f environment.yml
 conda activate abm-enso
 ```
 
-Esto instala todo (paquete + dependencias geoespaciales + Jupyter + herramientas de desarrollo) de una sola vez.
+El `environment.yml` instala todas las dependencias desde conda-forge, incluyendo GDAL/GEOS/PROJ pre-compilados. Esto es crítico en Windows donde la instalación pip de `geopandas` suele fallar.
 
-### Opción alternativa: pip puro
+Tiempo total: ~5–10 minutos.
 
-Para uso normal (solo runtime):
+## Opción 2: pip (avanzado)
 
-```bash
-pip install -r requirements.txt
-pip install -e . --no-deps
-```
-
-Para desarrollo (incluye pytest, ruff, mkdocs, jupyter):
+Requiere GDAL/GEOS/PROJ instalados en el sistema.
 
 ```bash
-pip install -e ".[dev]"
+git clone https://github.com/sebastiancobad/abm-enso-colombia.git
+cd abm-enso-colombia
+python -m venv .venv
+source .venv/bin/activate   # Linux/Mac
+# o: .venv\Scripts\activate  # Windows
+pip install -e .
 ```
 
-> **Nota Windows:** pip puro suele fallar compilando `rasterio`/`gdal`. Si falla, usa la opción conda.
+## Configuración de Copernicus (solo la primera vez)
 
-## Paso 4 — Configurar credenciales Copernicus CDS
+Para descargar ERA5 necesitas una cuenta gratuita de Copernicus CDS:
 
-ERA5 requiere una cuenta gratuita en Copernicus Climate Data Store.
-
-1. Regístrate en [cds.climate.copernicus.eu](https://cds.climate.copernicus.eu/user/register)
-2. Copia tu `UID` y `API key` desde [tu perfil](https://cds.climate.copernicus.eu/user)
-3. Crea `~/.cdsapirc` con el siguiente contenido:
+1. Registrarse en https://cds.climate.copernicus.eu/user/register
+2. Copiar tu API key desde https://cds.climate.copernicus.eu/user (abajo del perfil)
+3. Crear `~/.cdsapirc` (Linux/Mac) o `%USERPROFILE%\.cdsapirc` (Windows):
 
 ```
 url: https://cds.climate.copernicus.eu/api
-key: <UID>:<API-KEY>
+key: tu-key-aqui
 ```
 
-4. Acepta los términos del dataset ERA5-Land monthly means al menos una vez desde el navegador.
+4. Aceptar términos del dataset ERA5-Land en https://cds.climate.copernicus.eu/datasets/reanalysis-era5-land?tab=download
 
-## Paso 5 — Verificar la instalación
+Sin este último paso, tu primer `abm-enso download` fallará con error 403.
+
+## Verificación
 
 ```bash
 pytest tests/ -v
 ```
 
-Si los tests pasan, el paquete está correctamente instalado. Ya puedes correr:
+Debes ver **70 passed** (1 skipped si geopandas no está instalado).
 
 ```bash
 abm-enso --help
 ```
 
-## Solución de problemas
+Debe imprimir los 4 subcomandos disponibles.
 
-### `ImportError: libgdal.so.XX`
+## Troubleshooting
 
-GDAL no está instalado. En Ubuntu/Debian:
+### `conda: command not found` en Windows
 
-```bash
-sudo apt install libgdal-dev
-pip install --force-reinstall rasterio geopandas
-```
+Usa el shortcut **Miniforge Prompt** del menú Start en lugar de PowerShell. El PATH de conda no se configura automáticamente en PowerShell.
 
-O usa conda-forge (paso 2, opción B).
+### GDAL import errors
 
-### `cdsapi.exceptions.APIException: authentication failed`
+Ocurre con instalación pip. Solución: usar `conda env create -f environment.yml` en su lugar.
 
-Revisa `~/.cdsapirc`. La clave es `<UID>:<API-KEY>` con dos puntos, no `<API-KEY>` solo.
-
-### Solara no abre el navegador
-
-Forzar host y puerto manualmente:
+### Copernicus: `ModuleNotFoundError: cdsapi`
 
 ```bash
-solara run src/abm_enso/viz/app.py --host 0.0.0.0 --port 8765
+pip install cdsapi
 ```
 
-Luego abre `http://localhost:8765` manualmente.
+### Solara: `ModuleNotFoundError: anywidget`
+
+```bash
+pip install anywidget ipywidgets
+```
+
+### Windows: netCDF4 falla con rutas con tildes
+
+Algunas versiones de netCDF4 fallan al leer archivos en rutas con caracteres especiales (`ñ`, tildes, espacios). Workaround: mover temporalmente el archivo a `C:\tmp\` y procesar desde ahí.

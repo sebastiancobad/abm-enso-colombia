@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+message: "Si usas este software, por favor cítalo usando la metadata aquí."
+title: "ABM-ENSO-Colombia: Agent-Based Model of Colombian Hydrology Under ENSO Forcing"
+abstract: >-
+  Agent-based model where each HydroBASINS watershed in Colombia responds
+  to ENSO forcing via a Lorenz-oscillator-calibrated ONI signal. Produces
+  monthly activation events validated against the SIMMA catalog of
+  mass-movement events. Includes an interactive NetLogo-style Solara dashboard.
+type: software
+authors:
+  - family-names: "Coba Daza"
+    given-names: "Sebastián"
+    affiliation: "Universidad Jorge Tadeo Lozano (UTADEO)"
+repository-code: "https://github.com/sebastiancobad/abm-enso-colombia"
+url: "https://sebastiancobad.github.io/abm-enso-colombia/"
+version: "1.0.0"
+date-released: "2026-04-17"
+license: MIT
+keywords:
+  - agent-based-modeling
+  - ENSO
+  - Colombia
+  - hydrology
+  - Lorenz-oscillator
+  - mesa
+  - landslides
+  - climate-impact
+preferred-citation:
+  type: software
+  title: "ABM-ENSO-Colombia: Agent-Based Model of Colombian Hydrology Under ENSO Forcing"
+  authors:
+    - family-names: "Coba Daza"
+      given-names: "Sebastián"
+  year: 2026
+  version: "1.0.0"
+  url: "https://github.com/sebastiancobad/abm-enso-colombia"

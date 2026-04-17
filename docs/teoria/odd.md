@@ -1,171 +1,156 @@
-# Protocolo ODD — Modelo 1
+# Descripción ODD del modelo
 
-El protocolo **ODD** (*Overview, Design concepts, Details*; Grimm et al. 2020) es el estándar académico para describir modelos basados en agentes de forma reproducible y comparable.
+Formato estándar para documentar ABMs (Grimm et al. 2006, 2020).
 
-## 1. Propósito y patrones
+## 1. Objetivo (Overview)
 
-### 1.1 Propósito
+### Propósito
 
-Este modelo responde a una pregunta concreta:
+Cuantificar el impacto del ENSO sobre la dinámica hidrológica de las cuencas colombianas para predecir la probabilidad de activación de movimientos en masa (deslizamientos, flujos, caídas).
 
-> **¿Puede un ABM calibrado con datos públicos reproducir el patrón espacio-temporal de activaciones hídricas en Colombia durante La Niña 2010-11?**
+### Entidades, variables de estado, escalas
 
-El modelo NO pretende predecir eventos individuales, sino **cuantificar la distribución de riesgo hidrológico a escala nacional** bajo distintos forzamientos ENSO.
+**Agentes:** 231 cuencas HydroBASINS nivel 6 recortadas a Colombia.
 
-### 1.2 Patrones a reproducir
+**Variables de estado por cuenca:**
 
-1. La distribución temporal de activaciones hídricas durante La Niña 2010-11 (SIMMA)
-2. El lag de ~3 meses entre precipitación ERA5 y pico de nivel SIRH
-3. La periodicidad de ~4.6 años del ciclo ENSO
-4. La asimetría regional del impacto (Andes > Llanos > Caribe)
+| Variable | Tipo | Unidad |
+|----------|------|--------|
+| `id_cuenca` | string | — |
+| `area_hidrografica` | categoría (5) | — |
+| `capacidad_hidrica` | float | mm |
+| `precip_climatologia[12]` | array | mm/mes |
+| `humedad` | float | mm |
+| `evento_activo` | bool | — |
+| `beta_1` | float | mm/mes/°C |
+| `theta`, `kappa` | float | fracción |
 
-## 2. Entidades, variables de estado y escalas
+**Variables globales:**
 
-### 2.1 Entidades
+- `oni_actual` (float °C)
+- `tick` (int meses desde inicio)
 
-| Entidad | Clase Mesa |
-|---|---|
-| Cuenca hidrográfica | `CuencaAgent` |
-| Sistema completo | `ModeloCuencas` |
+**Escalas:**
 
-### 2.2 Variables de estado
+- Espacial: subcuencas HydroBASINS nivel 6 (~1000–10000 km² cada una)
+- Temporal: pasos mensuales, simulaciones típicas 36–240 meses
 
-**`CuencaAgent`:**
+### Visión general del proceso y scheduling
 
-| Variable | Tipo | Descripción |
-|---|---|---|
-| `id` | `int` | Identificador único |
-| `tipo_suelo` | `Literal["arcilloso","arenoso","rocoso"]` | Tipo dominante |
-| `beta_1` | `float` | Sensibilidad ONI→precip (mm/mes por °C) |
-| `theta` | `float` | Umbral de activación (fracción de capacidad) |
-| `kappa` | `float` | Tasa de drenaje mensual |
-| `capacidad_hidrica` | `float` | Retención máxima (mm) |
-| `humedad_acumulada` | `float` | Estado actual (mm) |
-| `precip_climatologia` | `np.ndarray[12]` | $P_0$ por mes |
-| `estado` | `Literal["estiaje","normal","humedo","saturado"]` | Clasificación visual |
-| `eventos_historicos` | `list[int]` | Lista de ticks en que se activó |
+En cada tick $t$:
 
-**`ModeloCuencas`:**
+1. Actualizar `oni_actual` desde la serie de forzamiento
+2. **Fase A:** cada cuenca lee su $H(t)$ y calcula $H(t+1)$, $E(t+1)$
+3. **Fase B:** cada cuenca aplica $H(t+1)$ y registra historial
+4. Recolectar métricas agregadas
 
-| Variable | Tipo | Descripción |
-|---|---|---|
-| `tick` | `int` | Paso temporal actual |
-| `oni_serie` | `pd.Series` | Forzamiento ONI precomputado |
-| `n_cuencas` | `int` | Número de agentes |
-| `schedule` | `SimultaneousActivation` | Activación síncrona |
-| `datacollector` | `DataCollector` | Registro de métricas |
+El scheduler es simultáneo — ninguna cuenca ve la actualización de otra dentro del mismo tick.
 
-### 2.3 Escalas
+## 2. Conceptos de diseño (Design Concepts)
 
-| Dimensión | Valor |
-|---|---|
-| Resolución espacial | Cuenca hidrográfica (zonificación IDEAM, ~316 subzonas) |
-| Resolución temporal | 1 tick = 1 mes |
-| Horizonte simulado | 1981–2024 (calibración) · 60 meses (escenarios) |
-| Extensión espacial | Colombia continental [−80, −5, −66, 13] |
+### Principios básicos
 
-## 3. Descripción del proceso y calendarizador
+Balance hídrico con memoria + umbral no lineal para evento.
 
-### 3.1 Orden de ejecución por tick
+### Emergencia
 
-```
-1. El modelo lee oni_serie[tick]
-2. SimultaneousActivation:
-   a. Cada CuencaAgent calcula P(t) = P_0 + beta_1 * ONI(t)
-   b. Cada CuencaAgent actualiza H(t+1) = (1-kappa)*H(t) + P(t+1)
-   c. Cada CuencaAgent evalúa E(t) = 1 si H > theta * capacidad
-   d. Cada CuencaAgent actualiza su estado visual (percentiles)
-3. DataCollector registra estado global
-4. tick ← tick + 1
-```
+La correlación espacio-temporal entre activaciones de cuencas del mismo área hidrográfica **no** está programada explícitamente — emerge del forzamiento común ONI y los parámetros heterogéneos por área.
 
-### 3.2 Tipo de scheduler
+### Adaptación
 
-`SimultaneousActivation` (Mesa): todos los agentes calculan su nuevo estado antes de que cualquiera lo aplique. Elimina el sesgo de orden de activación y es adecuado porque las cuencas son independientes en v0.1.0.
+Los agentes no adaptan su comportamiento en v1.0. Fase 7+ podría incorporar aprendizaje (por ejemplo, cuencas "aprendiendo" su θ óptimo).
 
-## 4. Conceptos de diseño
+### Objetivos
 
-| Concepto | Realización |
-|---|---|
-| **Principios básicos** | Balance hídrico simplificado + umbral de activación |
-| **Emergencia** | Patrón espacial de activaciones agregadas, asimetría regional |
-| **Adaptación** | No implementada en v0.1.0 |
-| **Objetivos** | No aplica — agentes no optimizan |
-| **Aprendizaje** | No implementado en v0.1.0 |
-| **Predicción** | Agentes responden solo al estado actual, no anticipan |
-| **Sensing** | Cada cuenca "ve" el ONI global y su propia humedad |
-| **Interacción** | Indirecta, vía forzamiento compartido |
-| **Estocasticidad** | Ruido opcional en $P(t)$ para réplicas; Lorenz es determinístico |
-| **Colectivos** | Agregación por tipo de suelo y por gran cuenca |
-| **Observación** | ONI, humedad media, número de activaciones por tick |
+Los agentes no tienen objetivos individuales; siguen ecuaciones deterministas + ruido.
 
-## 5. Inicialización
+### Aprendizaje / predicción / sensing
 
-1. Cargar shapefile de cuencas IDEAM
-2. Para cada polígono, asignar `tipo_suelo` según superposición con mapa IGAC de suelos (v0.1.0: uniforme por defecto)
-3. Asignar $\beta_1$, $\theta$, $\kappa$ según `cuencas_parametros.parquet` (salida de calibración)
-4. Calcular `precip_climatologia` por cuenca con ERA5 1991–2020
-5. Inicializar `humedad_acumulada` con la media histórica de cada cuenca
-6. Cargar el forzamiento ONI (real o sintético de Lorenz según escenario)
+No aplica en v1.0.
 
-## 6. Input data
+### Interacción
 
-| Dato | Fuente | Uso |
-|---|---|---|
-| `oni_mensual.csv` | NOAA/CPC | Forzamiento y calibración Lorenz |
-| `era5_*.nc` | Copernicus CDS | $\beta_1$ (precip) · $\kappa$ (runoff) · climatología |
-| `nivel_sirh_diario.csv` | IDEAM/Socrata | Validación de lag $\kappa$ |
-| `Resultados_SIMMA.csv` | SGC | Calibración $\theta$ + validación $r$ |
-| `cuencas_colombia.gpkg` | IDEAM/ArcGIS Hub | Geometría espacial de los agentes |
+Ninguna en el Modelo 1. Los otros 3 modelos de la arquitectura UTADEO añaden interacciones vía opinión pública, red vial e intervenciones INVIAS.
 
-## 7. Submodelos
+### Estocasticidad
 
-### 7.1 Precipitación local
+Controlada por `ruido_precip`:
 
 $$
-P_i(t) = P_{0,i}(\text{mes}) + \beta_{1,i} \cdot \text{ONI}(t) + \varepsilon_i(t)
+P_i(t) = P_{0,i}(\text{mes}) + \beta_{1,i} \cdot \text{ONI}(t) + \varepsilon_i, \quad \varepsilon_i \sim \mathcal{N}(0, \sigma_P^2)
 $$
 
-Con $\varepsilon_i(t) \sim \mathcal{N}(0, \sigma_P)$ opcional (réplicas estocásticas).
+Con `ruido_precip = 0`, la corrida es totalmente determinista dado el seed.
 
-### 7.2 Balance hídrico del suelo
+### Colectividades
+
+Las cuencas se agrupan por `area_hidrografica`. Comparten $\beta_1$ dentro del grupo.
+
+### Observación
+
+Por cada tick se registra:
+
+- `n_activaciones` (count)
+- `humedad_media` (mm)
+- `oni` (°C)
+
+Al final: matriz de activaciones cuenca × tiempo para análisis espacio-temporal.
+
+## 3. Detalles (Details)
+
+### Inicialización
+
+- Cada cuenca inicia con $H_0 = 0$
+- `oni_actual` se toma del primer valor de `oni_serie`
+- `random.seed(seed)` garantiza reproducibilidad
+
+### Input data
+
+- `oni_serie` — pd.Series con el forzamiento ONI mensual (puede ser real, Lorenz sintético o escenario idealizado)
+- `gdf_cuencas` — GeoDataFrame con las geometrías y atributos iniciales
+
+### Submodelos
+
+**P1 — Balance de precipitación:**
 
 $$
-H_i(t+1) = (1 - \kappa_i) \cdot H_i(t) + P_i(t+1)
+P_i(t+1) = P_{0,i}(\text{mes}(t+1)) + \beta_{1,i} \cdot \text{ONI}(t+1) + \varepsilon_i
 $$
 
-Clip inferior en 0, sin clip superior (el sistema puede "super-saturarse").
-
-### 7.3 Disparo de evento
+**P2 — Balance hídrico:**
 
 $$
-E_i(t) = \mathbb{1}\{ H_i(t) > \theta_i \cdot C_i \}
+H_i(t+1) = \max(0,\; (1 - \kappa) \cdot H_i(t) + P_i(t+1))
 $$
 
-Donde $C_i$ es la capacidad hídrica de la cuenca.
+**P3 — Activación de evento:**
 
-### 7.4 Estado visual
+$$
+E_i(t+1) = \mathbb{1}\{H_i(t+1) > \theta \cdot C_i\}
+$$
 
-Percentiles de $H_i(t)$ respecto a su propia serie histórica:
+## Calibración de parámetros
 
-| Estado | Rango |
-|---|---|
-| estiaje | $H < p_{10}$ |
-| normal | $p_{10} \leq H < p_{75}$ |
-| humedo | $p_{75} \leq H < p_{95}$ |
-| saturado | $H \geq p_{95}$ |
+| Parámetro | Método | Valor |
+|-----------|--------|------:|
+| $\beta_1$ por área | OLS agregado | −9.5 a −2.0 |
+| $\theta^*$ | Grid search F1 vs SIMMA | 0.700 |
+| $\kappa^*$ | Grid search F1 vs SIMMA | 0.275 |
+| $C_i$ por área | Literatura + ajuste | 750–1200 mm |
+| $\sigma_P$ | Libre (UI) | 0–30 mm |
 
 ## Validación
 
-El modelo se valida contra tres métricas independientes:
+### F1 calibración
 
-| Métrica | Comparación | Criterio |
-|---|---|---|
-| Correlación de Pearson | Activaciones simuladas vs SIMMA (2010–2012) | $r > 0.85$ |
-| F1-score | Activaciones en grilla de calibración 2000–2009 | Maximizar |
-| Distribución regional | Ranking de departamentos más afectados | Top 5 debe coincidir |
+0.629 sobre 528 meses de ERA5 con 6826 eventos SIMMA.
 
-## Referencias de protocolo
+### Validación out-of-sample
 
-- Grimm, V., et al. (2020). "The ODD protocol for describing agent-based and other simulation models: A second update." *JASSS* 23(2), 7.
-- Railsback, S. F., & Grimm, V. (2019). *Agent-Based and Individual-Based Modeling* (2nd ed.), Princeton University Press, cap. 3.
+Con $\theta^*, \kappa^*$ calibrados sobre todo el período, evaluar 2010–2012:
+**r = 0.43, F1 = 0.74**
+
+## Referencias
+
+- Grimm, V. et al. (2020). *The ODD Protocol for Describing Agent-Based and Other Simulation Models.* JASSS 23(2):7.
+- Railsback, S. F. & Grimm, V. (2019). *Agent-Based and Individual-Based Modeling.* Princeton UP, 2nd ed.

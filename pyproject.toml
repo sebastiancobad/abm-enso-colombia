@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "abm-enso-colombia"
-version = "0.4.0"
+version = "1.0.0"
 description = "Modelo Basado en Agentes del sistema climático-hidrológico colombiano bajo forzamiento ENSO"
 readme = "README.md"
 license = { text = "MIT" }
@@ -50,6 +50,8 @@ dependencies = [
     "plotly>=5.18",
     "ipywidgets>=8.1",
     "pillow>=10.1",
+    "imageio>=2.34",
+    "imageio-ffmpeg>=0.4",
 
     # APIs
     "sodapy>=2.2",

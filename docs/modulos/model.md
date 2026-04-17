@@ -1,101 +1,98 @@
 # Módulo `model`
 
-> **Estado:** pendiente de implementación en [Fase 4](../roadmap.md#fase-4--abm-en-mesa).
+ABM de cuencas en Mesa 3.x con scheduler simultáneo.
 
-Este subpaquete implementa el modelo basado en agentes en Mesa. La especificación formal está en el [Protocolo ODD](../teoria/odd.md).
+## Arquitectura
 
-## Estructura prevista
+### `CuencaAgent`
 
-```
-src/abm_enso/model/
-├── __init__.py
-├── agente.py        # CuencaAgent
-├── modelo.py        # ModeloCuencas
-└── escenarios.py    # Generadores de forzamientos ONI
-```
+Cada cuenca es un agente con:
 
-## API esperada
+| Atributo | Descripción |
+|----------|-------------|
+| `id_cuenca` | ID HydroBASINS |
+| `area_hidrografica` | Caribe / Magdalena-Cauca / Pacífico / Orinoco / Amazonas |
+| `capacidad_hidrica` | C (mm), depende del área |
+| `precip_climatologia` | array [12] bimodal colombiana |
+| `humedad` | H(t) (mm) |
+| `evento_activo` | E(t) ∈ {0, 1} |
+| `beta_1` | sensibilidad ENSO (hereda del área) |
+| `theta`, `kappa` | parámetros del modelo |
 
-```python
-from abm_enso.model import ModeloCuencas
+### Scheduler simultáneo (dos fases)
 
-# Instanciar con parámetros calibrados
-modelo = ModeloCuencas(
-    gdf_cuencas=cuencas,
-    oni_serie=oni_lorenz,
-    beta1_por_suelo={"arcilloso": 1.82, "arenoso": 1.31, "rocoso": 0.94},
-    theta=0.78,
-    kappa=0.22,
-    seed=42,
-)
-
-# Correr simulación
-for _ in range(60):
-    modelo.step()
-
-# Extraer resultados
-df_resultados = modelo.datacollector.get_model_vars_dataframe()
-df_agentes = modelo.datacollector.get_agent_vars_dataframe()
-```
-
-## Clase `CuencaAgent`
-
-Atributos principales:
+Mesa 3.x usa `AgentSet` en vez de schedulers clásicos. El modelo implementa paso simultáneo manual:
 
 ```python
-class CuencaAgent(mesa.Agent):
-    unique_id: int
-    tipo_suelo: Literal["arcilloso", "arenoso", "rocoso"]
-    beta_1: float
-    theta: float
-    kappa: float
-    capacidad_hidrica: float
-    humedad_acumulada: float
-    precip_climatologia: np.ndarray  # [12]
-    estado: Literal["estiaje", "normal", "humedo", "saturado"]
-    eventos_historicos: list[int]
+# Fase A: todas calculan su próximo estado usando H(t) actual
+self.agents.do("compute_next_state")
+
+# Fase B: todas aplican el nuevo estado
+self.agents.do("apply_next_state")
 ```
 
-Método `step()`:
+Esto garantiza que una cuenca no "ve" la actualización de sus vecinas dentro del mismo tick.
 
-1. Leer `self.model.oni_actual`
-2. Calcular $P(t) = P_0[\text{mes}] + \beta_1 \cdot \text{ONI}(t)$
-3. Actualizar $H(t+1) = (1-\kappa) \cdot H(t) + P(t+1)$
-4. Evaluar $E(t) = \mathbb{1}\{H(t) > \theta \cdot C\}$
-5. Actualizar estado visual
+## Ecuaciones
 
-## Clase `ModeloCuencas`
+Por cada tick $t$:
 
-Configuración:
+$$
+P_i(t) = P_{0,i}(\text{mes}) + \beta_{1,i} \cdot \text{ONI}(t) + \varepsilon_i
+$$
+
+$$
+H_i(t+1) = (1 - \kappa) \cdot H_i(t) + P_i(t+1), \quad H_i \geq 0
+$$
+
+$$
+E_i(t+1) = \mathbb{1}\{H_i(t+1) > \theta \cdot C_i\}
+$$
+
+## Heterogeneidad por área
 
 ```python
-class ModeloCuencas(mesa.Model):
-    def __init__(
-        self,
-        gdf_cuencas: gpd.GeoDataFrame,
-        oni_serie: pd.Series,
-        beta1_por_suelo: dict[str, float],
-        theta: float,
-        kappa: float,
-        seed: int = 42,
-    ): ...
+BETA1_POR_AREA_DEFAULT = {
+    "Magdalena-Cauca": -9.5,
+    "Caribe":          -8.2,
+    "Pacifico":        -5.8,
+    "Orinoco":         -4.5,
+    "Amazonas":        -2.0,
+    "default":         -7.3,
+}
 ```
 
-Scheduler: `SimultaneousActivation`.
+Y capacidad hídrica por área:
 
-DataCollector recolecta por tick:
+```python
+CAPACIDAD_POR_AREA = {
+    "Pacifico":        1100,
+    "Amazonas":        1200,
+    "Magdalena-Cauca": 900,
+    "Orinoco":         850,
+    "Caribe":          750,
+}
+```
 
-- `oni` — forzamiento actual
-- `humedad_media` — promedio global
-- `n_activaciones` — número de cuencas con $E=1$
-- `n_saturadas` — número de cuencas en estado "saturado"
-- Por agente: `humedad`, `estado`, `evento`
+## Escenarios
 
-## Validación contra La Niña 2010-11
+Generadores de forzamiento ONI:
 
-El notebook `03_simulacion.ipynb` corre:
+- `escenario_nina_2010(n_meses)` — gaussiana centrada, pico −1.6
+- `escenario_nino_2015(n_meses)` — gaussiana centrada, pico +2.3
+- `escenario_neutro(n_meses)` — ONI ≈ 0 con pequeño jitter
+- `escenario_historico(inicio, fin)` — ONI NOAA real del período indicado
+- `escenario_lorenz(n_meses, seed)` — ONI sintético del sistema de Lorenz
 
-1. Simulación con forzamiento ONI real 2009–2012
-2. Comparación contra catálogo SIMMA (conteo mensual de eventos)
-3. Reporte de Pearson $r$, RMSE del timing, distribución regional
-4. Objetivo: $r > 0.85$
+## Validación
+
+`validacion.validar_modelo_vs_simma()` compara activaciones simuladas vs eventos SIMMA 2010–2012:
+
+**Resultado actual:** r = 0.43, F1 = 0.74
+
+## API
+
+::: abm_enso.model
+    options:
+      show_root_heading: false
+      show_source: false

@@ -7,6 +7,61 @@ y el versionado sigue [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [1.0.0] — Fase 6 · Release estable
+
+### Agregado
+- `README.md` completo con badges (versión, licencia, Python, tests, Mesa), sección de resultados calibrados, quickstart, estructura del proyecto, comandos CLI documentados, referencias académicas y guía de citación
+- `CITATION.cff` para citación académica formal (formato Citation File Format 1.2.0) con referencias a Lorenz 1963 y Poveda 2004
+- `docs/index.md`, `docs/quickstart.md`, `docs/instalacion.md` — documentación completa navegable con mkdocs
+- `docs/teoria/{fundamentos,enso-lorenz,odd}.md` — fundamentos físicos, sistema de Lorenz y descripción ODD del modelo
+- `docs/modulos/{data,analysis,model,viz}.md` — documentación por subpaquete con ejemplos de uso
+- `docs/referencias.md` — bibliografía completa
+- `docs/roadmap.md` — estado del proyecto y trabajo futuro
+
+### Consolidado
+- Pipeline end-to-end validado con datos reales: ONI 914 meses, ERA5 528 meses, SIMMA 6826 eventos, Cuencas 231 polígonos
+- 70 tests pasando (4 smoke + 11 data + 21 analysis + 19 model + 15 viz)
+- App Solara corriendo con mapa de 231 cuencas + panel de estado + series temporales Plotly + heatmap + periodograma
+- Calibración confirmada: β₁ = −7.33 mm/mes/°C, θ* = 0.700, κ* = 0.275, F1 = 0.629 (vs 6826 eventos SIMMA)
+
+### Estable desde esta versión
+- API pública de `abm_enso.{data, analysis, model, viz}`
+- Formato de `data/processed/cuencas_parametros.parquet`
+- Esquema de argumentos del CLI `abm-enso {download,calibrate,simulate,viz}`
+
+---
+
+## [0.5.0] — Fase 5 · Visualización Solara tipo NetLogo
+
+### Agregado
+- `src/abm_enso/viz/app.py` — layout Solara principal con autoplay threading y callbacks reactivos
+- `src/abm_enso/viz/simulacion.py` — `SimulacionEnVivo`: wrapper de `ModeloCuencas` con API simplificada para la UI (reset_con_escenario, step, snapshots)
+- `src/abm_enso/viz/estado.py` — variables reactivas compartidas entre componentes
+- `src/abm_enso/viz/mapa_cuencas.py` — choropleth matplotlib con 4 colores por estado hídrico (estiaje/normal/humedo/saturado), renderiza las 231 cuencas HydroBASINS
+- `src/abm_enso/viz/series.py` — panel Plotly con 4 subplots sincronizados (ONI, % activadas, humedad media, eventos SIMMA si escenario histórico)
+- `src/abm_enso/viz/heatmap.py` — mapa de calor Plotly cuencas × tiempo (top 80 por activaciones, ordenado por área hidrográfica)
+- `src/abm_enso/viz/periodograma.py` — Lomb-Scargle con banda ENSO sombreada (2-7 años) y marcador del pico dominante
+- `src/abm_enso/viz/controles.py` — panel lateral tipo NetLogo: play/pause/step/reset + sliders θ/κ/ruido/seed + selector escenario + exports
+- `src/abm_enso/viz/export.py` — grabación a GIF (imageio) y MP4 (imageio-ffmpeg) con detección automática de disponibilidad
+- `tests/test_viz.py` — 15 tests: lógica pura de SimulacionEnVivo + render helpers + export detection
+
+### Modificado
+- `src/abm_enso/cli.py` — subcomando `abm-enso viz` ahora lanza `solara run` (antes Dash, descontinuado)
+- `pyproject.toml` + `environment.yml` — añadidas `imageio>=2.34` y `imageio-ffmpeg>=0.4`
+
+### Verificado
+- 70 tests pasando (4 smoke + 11 data + 21 analysis + 19 model + 15 viz)
+- App Solara arranca con `abm-enso viz` o `solara run src/abm_enso/viz/app.py`
+- Autoplay en thread separado con velocidad configurable 1-10 ticks/seg
+- Exports guardan en `outputs/simulacion_{escenario}_{timestamp}.{gif|mp4}`
+
+### Pendiente para Fase 6
+- mkdocs build con screenshots de la app
+- Badge de versión + CI en GitHub Actions
+- Release v1.0.0 en GitHub
+
+---
+
 ## [0.4.0] — Fase 4 · ABM en Mesa
 
 ### Agregado
@@ -19,7 +74,7 @@ y el versionado sigue [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - `notebooks/03_simulacion.ipynb` — comparación Niña vs Niño vs neutro + Monte Carlo con 30 réplicas + validación SIMMA
 - `tests/test_model.py` — 19 tests con síntesis en runtime
 
-### Heterogeneidad β₁ por área (respecto a cal. nacional -7.33):
+### Heterogeneidad β₁ por área
 - Magdalena-Cauca: -9.5
 - Caribe: -8.2
 - Pacífico: -5.8
@@ -29,11 +84,6 @@ y el versionado sigue [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Verificado
 - 54 tests pasando (+19 de modelo), 1 skipped
 - API Mesa 3.x (AgentSet en vez de schedulers clásicos)
-
-### Pendiente para Fase 5
-- App Solara con mapa interactivo tipo NetLogo
-- Controles play/pause/step, sliders θ/κ/β₁
-- Export GIF/MP4
 
 ---
 
@@ -48,18 +98,15 @@ y el versionado sigue [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - `src/abm_enso/pipeline.py` — función `calibrar_modelo()` end-to-end que guarda `data/processed/cuencas_parametros.parquet`
 - `notebooks/02_calibracion.ipynb` — pipeline completo con panel interactivo Plotly de sensibilidad θ vs κ
 - `tests/test_analysis.py` — 21 tests con datos sintéticos en runtime (sin archivos fixture)
-- `scripts/concatenar_era5.py`, `concatenar_era5_v3.py`, `generar_era5_csv.py` — utilidades para manejar chunks ZIP de Copernicus y bug de rutas con acentos en Windows
 
 ### Modificado
 - `src/abm_enso/cli.py` — subcomando `abm-enso calibrate` ahora funcional
 - `src/abm_enso/analysis/__init__.py` — exports públicos de los 5 módulos
-- `src/abm_enso/data/era5.py` — descarga con chunking por bloques (soluciona cost limit de Copernicus)
-- `src/abm_enso/data/simma.py` — encoding tolerante (utf-8-sig → utf-8 → latin-1 → cp1252)
-- `scripts/download_all.py` + `src/abm_enso/cli.py` — flag `--era5-chunk-years` para configurar tamaño de request
 
 ### Verificado
 - 35 tests pasando (4 smoke + 11 integración + 21 análisis); 1 skipped sin geopandas
-- Pipeline end-to-end con datos reales: ONI 914 meses, ERA5 528 meses, SIMMA 6826 eventos, Cuencas 231 polígonos
+- Pipeline end-to-end probado con datos sintéticos en runtime
+- `abm-enso calibrate` ejecuta el flujo Butterworth → Lorenz → OLS → grid search y guarda `data/processed/cuencas_parametros.parquet`
 
 ### Pendiente para Fase 4
 - ABM en Mesa (CuencaAgent + ModeloCuencas)
@@ -115,4 +162,30 @@ y el versionado sigue [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Documentación base: `index`, `instalacion`, `quickstart`, `roadmap`, `referencias`
 - Teoría: `teoria/fundamentos.md`, `teoria/enso-lorenz.md`, `teoria/odd.md`
 - Placeholders de módulos: `modulos/{data,analysis,model,viz}.md`
-- CSV `Resultados_SIMMA.csv` versionado en `data/raw/`
+- CSV `Resultados_SIMMA.csv` versionado en `data/raw/`## [0.5.0] - Fase 5 - Visualizacion interactiva Dash
+
+### Agregado
+- src/abm_enso/viz/app.py - app Dash con layout estilo NetLogo: controles laterales, mapa central, series derechas
+- src/abm_enso/viz/mapa.py - choropleth de Colombia con estado hidrico por cuenca (4 colores discretos)
+- src/abm_enso/viz/series.py - 3 plots sincronizados (ONI, humedad, activaciones + SIMMA overlay)
+- src/abm_enso/viz/export.py - generador de GIF programatico via kaleido + imageio
+- src/abm_enso/viz/estilos.py - design tokens (paleta, tipografia)
+- src/abm_enso/cli.py - subcomando abm-enso viz con flags --host, --port, --debug
+- notebooks/04_demo_viz.ipynb - demo interactivo + export GIF
+- tests/test_viz.py - 6 smoke tests sin levantar servidor
+
+### Caracteristicas del visualizador
+- Dropdown de escenario: historico, nina-2010, nino-2015, neutro, lorenz
+- Sliders theta, kappa, ruido con defaults calibrados
+- Controles Play/Pause/Step/Reset + slider FPS
+- Slider de tick manual para navegar el tiempo
+- Mapa se actualiza tick-a-tick con la distribucion espacial del estado
+- Series temporales con linea vertical marcando el tick actual
+- SIMMA observado se superpone automaticamente en escenario historico
+
+### Verificado
+- 56 tests pasando (54 + 2 viz); aplicacion construye sin errores
+
+---
+
+

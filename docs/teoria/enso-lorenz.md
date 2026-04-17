@@ -1,122 +1,80 @@
 # ENSO y el oscilador de Lorenz
 
-## ¿Qué es ENSO?
+## El modelo de Lorenz (1963)
 
-El **El Niño/Southern Oscillation (ENSO)** es una oscilación acoplada océano-atmósfera en el Pacífico ecuatorial con impactos globales en precipitación y temperatura. En Colombia es el principal predictor de inundaciones (La Niña) y sequías (El Niño) en los Andes.
+Edward Lorenz derivó este sistema como simplificación extrema de la convección atmosférica. A pesar de su simplicidad (3 ecuaciones ordinarias), captura la sensibilidad a condiciones iniciales que caracteriza a sistemas climáticos caóticos.
 
-### Los tres estados
-
-1. **Condiciones normales** — los vientos alisios soplan hacia el oeste; el agua caliente se acumula en el Pacífico occidental (Indonesia). El Pacífico central y oriental permanece frío. En los Andes colombianos: lluvia normal.
-2. **La Niña** — vientos alisios más fuertes; el enfriamiento del Pacífico central se intensifica (SST < climatología). Más convección sobre Colombia, precipitación anómala positiva en los Andes, riesgo elevado de deslizamientos.
-3. **El Niño** — vientos alisios debilitados; el Pacífico central se calienta (SST > climatología). La convección migra al este; Colombia entra en período seco, déficit hídrico en cuencas andinas, riesgo de incendios.
-
-## El Oceanic Niño Index (ONI)
-
-El ONI es el **índice oficial NOAA/CPC** para medir ENSO. No es temperatura absoluta — es una anomalía.
-
-### Definición
+### Ecuaciones
 
 $$
-\text{ONI}(t) = \overline{\text{SST}^{\text{Niño 3.4}}(t-1, t, t+1)} - \overline{\text{SST}^{\text{clim}}_{\text{mes}(t)}}
+\begin{aligned}
+\dot{x} &= \sigma (y - x) \\
+\dot{y} &= x (\rho - z) - y \\
+\dot{z} &= xy - \beta z
+\end{aligned}
 $$
 
-Donde:
+### Parámetros canónicos
 
-- **Región Niño 3.4** — caja 5°N–5°S, 170°W–120°W (Pacífico ecuatorial central)
-- **SST climatológica** — media mensual 1986–2015
-- **Media móvil de 3 meses** — suaviza la variabilidad intraseasonal
+| Parámetro | Valor | Interpretación |
+|-----------|------:|----------------|
+| σ | 10 | Prandtl (viscosidad/difusión) |
+| ρ | 28 | Rayleigh (gradiente térmico) |
+| β | 8/3 | Geometría del sistema |
 
-### Clasificación
+### Propiedades del atractor
 
-| Condición | Etiqueta |
-|---|---|
-| ONI ≤ −0.5 °C durante ≥ 5 meses consecutivos | La Niña |
-| −0.5 < ONI < +0.5 °C | Neutro |
-| ONI ≥ +0.5 °C durante ≥ 5 meses consecutivos | El Niño |
+Con ρ = 28 el sistema entra en régimen caótico y traza el famoso atractor de Lorenz (forma de mariposa) en el espacio (x, y, z). La proyección de $x(t)$ en el tiempo muestra:
 
-### ¿Por qué ONI y no SST directa?
+- Oscilaciones cuasi-periódicas de ~0.7 unidades de tiempo
+- Cambios abruptos de signo
+- Amplitud acotada pero impredecible
 
-La SST cruda tiene variabilidad de alta frecuencia no relacionada con ENSO. La media móvil de 3 meses del ONI elimina ese ruido y deja solo la señal ENSO. Usar SST directa sobreestimaría la duración y frecuencia de los eventos en el modelo.
+## ¿Por qué usar Lorenz para ENSO?
 
-## El oscilador de Lorenz como generador sintético
+El ENSO real se modela con sistemas acoplados océano-atmósfera de cientos de grados de libertad (CESM, HadGEM3, etc.). Eso es prohibitivo para un ABM académico. Lorenz es la simplificación mínima que preserva lo esencial:
 
-### El problema
+### Propiedades compartidas
 
-El ONI histórico tiene solo ~75 años (1950-presente). Para:
+| Propiedad | ENSO | Lorenz |
+|-----------|------|--------|
+| Oscilación pseudo-periódica | ~3–7 años | ~0.7 u.t. (calibrable) |
+| Amplitud acotada | ±3 °C | ±20 u.a. |
+| Caos determinista | sí | sí |
+| Baja predictibilidad >6m | sí | sí |
 
-1. Correr réplicas estocásticas múltiples
-2. Explorar escenarios hipotéticos (La Niña más intensa, El Niño multianual)
-3. Tener series continuas sin huecos
+### Lo que NO comparten
 
-necesitamos un **generador sintético** que preserve las propiedades estadísticas del ONI real.
+- **Fase exacta** — un modelo Lorenz con misma semilla no predice cuándo ocurrirá el próximo Niño real. r(Lorenz, ONI) = 0.042.
+- **Fenómenos externos** — el ENSO responde a forzantes volcánicos/antropogénicos que Lorenz ignora.
 
-### El sistema de Lorenz
+## Calibración del tiempo Lorenz → meses ONI
 
-Edward Lorenz (1963) descubrió que el siguiente sistema de tres EDO exhibe **caos determinístico**:
+El sistema de Lorenz es adimensional. Para mapear $x(t)$ a una serie ONI mensual:
 
-$$
-\begin{align}
-\frac{dx}{dt} &= \sigma(y - x) \\
-\frac{dy}{dt} &= x(\rho - z) - y \\
-\frac{dz}{dt} &= xy - \beta z
-\end{align}
-$$
+1. **Integrar** Lorenz durante $T = 2000$ unidades de tiempo con paso $dt = 0.01$
+2. **Descartar transitorio** (primeros ~5000 pasos)
+3. **Submuestrear** a N puntos (= meses de la serie ONI real)
+4. **Normalizar** a media y std del ONI filtrado
+5. **Alinear fase** por correlación cruzada con lag máximo de ±12 meses
 
-Con parámetros canónicos $\sigma = 10$, $\rho = 28$, $\beta = 8/3$, el sistema produce el **atractor de Lorenz** — una trayectoria limitada, pseudo-periódica, sin repetirse jamás.
+```python
+from abm_enso.analysis.lorenz import generar_oni_sintetico
+oni_sintetico = generar_oni_sintetico(oni_filtrado, T=2000.0, seed=42)
+```
 
-### ¿Por qué Lorenz para ENSO?
+## Uso en el ABM
 
-Porque el ENSO real tiene exactamente estas propiedades:
+El ONI sintético de Lorenz reemplaza al ONI observado en tres casos:
 
-- **Pseudo-periodicidad** — el ciclo real oscila con período ≈ 4.6 años pero no es exactamente periódico
-- **Sensibilidad a condiciones iniciales** — dos estados atmosféricos casi idénticos divergen en meses
-- **Bimodalidad** — el sistema tiende a quedarse largos períodos cerca de uno de dos "lóbulos" (análogos a regímenes El Niño / La Niña)
-- **Estacionaridad estadística** — la distribución de amplitudes es estable en el largo plazo
+1. **Proyecciones futuras** — extender más allá de 2024
+2. **Sensibilidad de corrida** — miles de Monte Carlo con distintas seeds
+3. **Simulaciones > 75 años** — más allá del registro histórico (1950–presente)
 
-### Proyección X(t) → ONI sintético
+Para validación y calibración, siempre usamos el ONI real de NOAA. Lorenz es un complemento, no un reemplazo.
 
-El procedimiento es:
+## Referencias clave
 
-1. Integrar el sistema con condiciones iniciales $(x_0, y_0, z_0) = (1, 1, 1)$ hasta $t = T$ usando `scipy.integrate.odeint`.
-2. Normalizar la variable $x(t)$ a la media y desviación estándar del ONI observado filtrado con Butterworth.
-3. Calibrar el desfase temporal por correlación cruzada máxima.
-
-$$
-\text{ONI}_{\text{Lorenz}}(t) = \mu_{\text{ONI}} + \sigma_{\text{ONI}} \cdot \frac{x(t) - \overline{x}}{\sigma_x}
-$$
-
-El resultado tiene la misma estructura espectral (período ≈ 4.6 años), pero es continuo, sin huecos, y preserva la sensibilidad a condiciones iniciales del ENSO.
-
-## El filtro Butterworth pasa-banda
-
-Antes de ajustar Lorenz al ONI observado, filtramos la banda ENSO para eliminar:
-
-- **Alta frecuencia** — variabilidad intraseasonal, ruido diario
-- **Baja frecuencia** — tendencia climática de largo plazo (cambio climático)
-
-### Parámetros
-
-| Parámetro | Valor | Justificación |
-|---|---|---|
-| Orden | 4 | Balance entre rolloff y estabilidad numérica |
-| Banda pasa | 2–7 años | Rango físico del ENSO |
-| Aplicación | `filtfilt` (fase cero) | No introduce desfase temporal |
-
-### Aplicación a las 4 fuentes
-
-| Fuente | Pre-proceso antes del filtro | Serie filtrada |
-|---|---|---|
-| F1 · ONI | Ninguno (ya tiene MA-3) | `oni_enso(t)` |
-| F2 · ERA5 (3 vars) | Restar climatología mensual | `precip_enso`, `soil_enso`, `runoff_enso` |
-| F3 · SIRH | Agregar a mensual + quitar clima + interpolar gaps ≤ 3M | `nivel_enso` por estación |
-| F4 · SIMMA | Conteo mensual + $\sqrt{\cdot}$ + clima + filtrar 2000–2023 | `eventos_enso(t)` |
-
-## Relación con el ABM
-
-En el `ModeloCuencas`, la variable ONI entra como **forzamiento externo global** compartido por todos los agentes. Cada cuenca responde según sus propios parámetros:
-
-$$
-P_i(t) = P_{0,i} + \beta_{1,i} \cdot \text{ONI}(t)
-$$
-
-Donde $i$ indexa la cuenca y los subíndices en $\beta_{1,i}$ y $P_{0,i}$ reflejan la heterogeneidad entre cuencas (tipo de suelo, climatología local).
+- Lorenz, E. N. (1963). *Deterministic Nonperiodic Flow.* J. Atmos. Sci. 20:130–141.
+- Jin, F.-F. (1997). *An Equatorial Ocean Recharge Paradigm for ENSO.* J. Atmos. Sci. 54:811–829.
+- Timmermann, A. et al. (2018). *El Niño–Southern Oscillation complexity.* Nature 559:535–545.

@@ -1,72 +1,94 @@
 # Módulo `analysis`
 
-> **Estado:** pendiente de implementación en [Fase 3](../roadmap.md#fase-3--análisis-y-calibración).
+Filtros espectrales, oscilador de Lorenz y calibración estadística de parámetros.
 
-Este subpaquete contiene el análisis estadístico y la calibración de los parámetros del ABM contra datos.
+## Flujo de calibración
 
-## Estructura prevista
+```mermaid
+graph LR
+    A[ONI crudo] --> B[butterworth_enso]
+    B --> C[ONI filtrado]
+    C --> D[generar_oni_sintetico]
+    D --> E[ONI Lorenz]
 
+    F[ERA5 precip] --> G[desestacionalizar]
+    G --> H[precip_anom]
+    C --> I[ols_beta1]
+    H --> I
+    I --> J[β₁ calibrado]
+
+    K[SIMMA eventos] --> L[grid_search_f1]
+    F --> L
+    L --> M[θ*, κ*, F1]
 ```
-src/abm_enso/analysis/
-├── __init__.py
-├── filtros.py                  # Butterworth banda ENSO
-├── lorenz.py                   # Integración + ajuste a ONI observado
-├── calibracion_beta.py         # OLS ONI × ERA5 por tipo de suelo
-├── calibracion_theta_kappa.py  # Grid search con F1-score
-└── metricas.py                 # Pearson r, F1, KS, Moran's I
-```
 
-## API esperada
+## `filtros`
+
+### Butterworth pasa-banda ENSO
+
+Filtro Butterworth orden 4 con `filtfilt` (fase cero). Banda 2–7 años separa la señal ENSO del ruido estacional y tendencias de largo plazo.
+
+$$
+H(\omega) = \frac{1}{\sqrt{1 + (\omega/\omega_c)^{2n}}}
+$$
 
 ```python
-from abm_enso.analysis import filtros, lorenz, calibracion_beta
-
-# Filtro Butterworth pasa-banda ENSO
-s_filt = filtros.butterworth_enso(serie_mensual, low=1/7, high=1/2, order=4)
-
-# Generador sintético Lorenz
-x_lorenz = lorenz.integrar(T=1000, dt=0.01, init=(1,1,1))
-oni_sintetico = lorenz.proyectar_a_oni(x_lorenz, oni_observado)
-
-# Calibración de β₁ por tipo de suelo
-betas = calibracion_beta.ols_por_suelo(era5_precip, oni, shapefile_cuencas)
-
-# Grid search para θ y κ
-theta_opt, kappa_opt = calibracion_theta_kappa.grid_search(
-    cuencas, oni, simma, theta_grid=np.arange(0.65, 0.95, 0.05)
-)
+from abm_enso.analysis.filtros import butterworth_enso
+oni_filtrado = butterworth_enso(oni_crudo)
 ```
 
-## Ecuaciones centrales
+### Desestacionalización
 
-**Butterworth banda ENSO:**
+Resta la climatología mensual (promedio por mes calendario) para producir anomalías.
 
-$$
-H_{\text{BP}}(f) = \frac{1}{\sqrt{1 + \left(\frac{f_c}{f}\right)^{2n}}} \cdot \frac{1}{\sqrt{1 + \left(\frac{f}{f_c}\right)^{2n}}}
-$$
+## `lorenz`
 
-**Lorenz system:**
+Sistema clásico de Lorenz (1963):
 
 $$
-\begin{align}
-\dot{x} &= \sigma(y-x) \\
-\dot{y} &= x(\rho-z) - y \\
+\begin{aligned}
+\dot{x} &= \sigma (y - x) \\
+\dot{y} &= x (\rho - z) - y \\
 \dot{z} &= xy - \beta z
-\end{align}
+\end{aligned}
 $$
 
-**Calibración de $\beta_1$:**
+con $\sigma=10$, $\rho=28$, $\beta=8/3$. La variable $x(t)$ normalizada a la media y std del ONI filtrado produce una serie sintética estadísticamente coherente pero infinitamente larga.
+
+**Resultado de calibración actual:** r(Lorenz, ONI_filtrado) = 0.042 — el atractor de Lorenz no "imita" al ENSO observado en fase, sino que **sustituye** un forzamiento estocástico con uno caótico determinista. Sirve para proyecciones de sensibilidad pero no para hindcasting punto a punto.
+
+## `calibracion_beta`
+
+OLS simple: $\text{precip\_anom} \sim \alpha + \beta_1 \cdot \text{ONI} + \varepsilon$.
+
+**Resultado actual (nacional):**
 
 $$
-P'_i(t) = \alpha_i + \beta_{1,i} \cdot \text{ONI}(t) + \varepsilon
+\beta_1 = -7.33 \text{ mm/mes por °C ONI}, \quad r^2 = 0.176
 $$
 
-donde $P'_i$ es la anomalía de precipitación (desestacionalizada) en la cuenca $i$.
+El $r^2$ bajo (0.176) se debe a promediar Colombia entera, mezclando regiones con respuestas opuestas. Para calibrar por región usar `calibrar_por_grupo()`.
 
-**F1-score para grid search de $\theta, \kappa$:**
+## `calibracion_theta_kappa`
+
+Grid search bidimensional sobre $\theta \in [0.60, 0.95]$ y $\kappa \in [0.05, 0.45]$ maximizando F1 contra eventos SIMMA mensuales (umbral: >5 eventos/mes).
+
+**Resultado actual:**
 
 $$
-F_1(\theta, \kappa) = \frac{2 \cdot \text{precision} \cdot \text{recall}}{\text{precision} + \text{recall}}
+\theta^* = 0.700, \quad \kappa^* = 0.275, \quad F_1 = 0.629
 $$
 
-donde precision y recall se calculan entre eventos simulados $E_i(t)$ y eventos SIMMA observados en el período 2000–2009.
+## `metricas`
+
+- `pearson_r(a, b)` → correlación lineal [−1, 1]
+- `rmse(a, b)` → raíz del error cuadrático medio
+- `f1_score(y_true, y_pred)` → F1 para clasificación binaria
+- `lomb_scargle(serie, f_max)` → periodograma espectral (tolera NaN)
+
+## API
+
+::: abm_enso.analysis
+    options:
+      show_root_heading: false
+      show_source: false
