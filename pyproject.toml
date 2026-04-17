@@ -44,6 +44,7 @@ dependencies = [
 
     # ABM
     "mesa>=2.3",
+    "networkx>=3.0",
 
     # Viz
     "solara>=1.30",
