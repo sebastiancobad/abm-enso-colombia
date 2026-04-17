@@ -1,0 +1,119 @@
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ---------- Testing ----------
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ---------- Jupyter ----------
+.ipynb_checkpoints/
+*-checkpoint.ipynb
+.jupyter/
+
+# ---------- IDEs ----------
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+.spyderproject
+.spyproject
+
+# ---------- macOS / Windows ----------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ---------- Docs ----------
+site/
+docs/_build/
+
+# ---------- Type checking ----------
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+
+# ---------- Data — raw (se descarga, NO se versiona) ----------
+data/raw/*.nc
+data/raw/*.zip
+data/raw/*.shp
+data/raw/*.dbf
+data/raw/*.shx
+data/raw/*.prj
+data/raw/*.cpg
+data/raw/*.geojson
+data/raw/*.gpkg
+data/raw/era5_*
+data/raw/cuencas_*
+data/raw/nivel_sirh_*
+data/raw/*.tgz
+data/raw/*.tar.gz
+
+# Excepto el CSV SIMMA que sí versionamos (viene en el repo)
+!data/raw/Resultados_SIMMA.csv
+
+# ---------- Data — processed (se regenera, NO se versiona) ----------
+data/processed/*.csv
+data/processed/*.parquet
+data/processed/*.feather
+data/processed/*.nc
+
+# ---------- Outputs — figuras y simulaciones ----------
+outputs/figures/*.png
+outputs/figures/*.jpg
+outputs/figures/*.pdf
+outputs/simulations/*.gif
+outputs/simulations/*.mp4
+outputs/simulations/*.pkl
+
+# Mantener estructura de carpetas vacías
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/external/.gitkeep
+!outputs/figures/.gitkeep
+!outputs/simulations/.gitkeep
+
+# ---------- Credentials ----------
+.env
+.cdsapirc
+*.key
+*.pem
+
+# ---------- Miscellaneous ----------
+*.log
+*.tmp
+*.bak

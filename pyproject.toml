@@ -1,0 +1,114 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "abm-enso-colombia"
+version = "0.1.0"
+description = "Modelo Basado en Agentes del sistema climático-hidrológico colombiano bajo forzamiento ENSO"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [
+    { name = "Sebastián Coba Daza" }
+]
+keywords = ["abm", "climate", "enso", "colombia", "mesa", "lorenz", "hydrology"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+    "Topic :: Scientific/Engineering :: GIS",
+]
+
+dependencies = [
+    # Core scientific stack
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "scipy>=1.11",
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+
+    # Geospatial
+    "geopandas>=0.14",
+    "shapely>=2.0",
+    "rasterio>=1.3",
+    "pyproj>=3.6",
+
+    # Climate data
+    "xarray>=2024.1",
+    "netCDF4>=1.6",
+    "cdsapi>=0.7",
+
+    # ABM
+    "mesa>=2.3",
+
+    # Viz
+    "solara>=1.30",
+    "plotly>=5.18",
+    "ipywidgets>=8.1",
+    "pillow>=10.1",
+
+    # APIs
+    "sodapy>=2.2",
+    "requests>=2.31",
+
+    # Utilities
+    "tqdm>=4.66",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.1",
+    "mypy>=1.7",
+    "jupyter>=1.0",
+    "jupyterlab>=4.0",
+    "mkdocs>=1.5",
+    "mkdocs-material>=9.4",
+    "mkdocstrings[python]>=0.24",
+    "mkdocs-jupyter>=0.24",
+]
+
+[project.scripts]
+abm-enso = "abm_enso.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/sebastiancobad/abm-enso-colombia"
+Documentation = "https://github.com/sebastiancobad/abm-enso-colombia/tree/main/docs"
+Repository = "https://github.com/sebastiancobad/abm-enso-colombia"
+Issues = "https://github.com/sebastiancobad/abm-enso-colombia/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+abm_enso = ["py.typed", "config/*.yaml"]
+
+# -------- Tooling --------
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-select = ["E", "F", "I", "N", "W", "B", "UP", "SIM", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --cov=abm_enso --cov-report=term-missing"
+pythonpath = ["src"]
