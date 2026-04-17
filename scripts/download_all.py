@@ -23,6 +23,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--solo", default=",".join(FUENTES_DISPONIBLES))
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--era5-mode", choices=["daily", "monthly"], default="daily")
+    parser.add_argument("--era5-chunk-years", type=int, default=5)
     parser.add_argument("--skip-on-error", action="store_true")
     args = parser.parse_args(argv)
 
@@ -31,6 +32,7 @@ def main(argv: list[str] | None = None) -> int:
         solo=fuentes,
         force=args.force,
         era5_mode=args.era5_mode,
+        era5_chunk_years=args.era5_chunk_years,
         skip_on_error=args.skip_on_error,
     )
     return 0 if all(ok for ok, _ in results.values()) else 1

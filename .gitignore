@@ -117,3 +117,23 @@ outputs/simulations/*.pkl
 *.log
 *.tmp
 *.bak
+
+# Scripts de one-time fix (no versionar)
+scripts/concatenar_era5*.py
+scripts/generar_era5_csv.py
+
+# NetCDF en cualquier parte del repo
+*.nc
+
+# Archivos raros con llaves
+{*
+
+# Datos descargados (no versionar)
+data/raw/oni_mensual.csv
+data/raw/Resultados_SIMMA.sgc.csv
+data/raw/nivel_sirh_diario.csv
+data/raw/cuencas_colombia.gpkg
+
+# Resultados de calibración (se regeneran)
+data/processed/cuencas_parametros.parquet
+data/processed/calibracion_resumen.json

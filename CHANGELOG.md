@@ -7,6 +7,37 @@ y el versionado sigue [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.3.0] — Fase 3 · Análisis y calibración
+
+### Agregado
+- `src/abm_enso/analysis/filtros.py` — Butterworth pasa-banda ENSO (2-7 años) + desestacionalización mensual
+- `src/abm_enso/analysis/lorenz.py` — integrador RK4 del sistema de Lorenz + proyección a ONI con cross-correlation fit
+- `src/abm_enso/analysis/metricas.py` — Pearson r, F1-score, RMSE, periodograma Lomb-Scargle
+- `src/abm_enso/analysis/calibracion_beta.py` — OLS ONI × ERA5 precipitación por grupo de cuencas
+- `src/abm_enso/analysis/calibracion_theta_kappa.py` — grid search F1 contra eventos SIMMA
+- `src/abm_enso/pipeline.py` — función `calibrar_modelo()` end-to-end que guarda `data/processed/cuencas_parametros.parquet`
+- `notebooks/02_calibracion.ipynb` — pipeline completo con panel interactivo Plotly de sensibilidad θ vs κ
+- `tests/test_analysis.py` — 21 tests con datos sintéticos en runtime (sin archivos fixture)
+- `scripts/concatenar_era5.py`, `concatenar_era5_v3.py`, `generar_era5_csv.py` — utilidades para manejar chunks ZIP de Copernicus y bug de rutas con acentos en Windows
+
+### Modificado
+- `src/abm_enso/cli.py` — subcomando `abm-enso calibrate` ahora funcional
+- `src/abm_enso/analysis/__init__.py` — exports públicos de los 5 módulos
+- `src/abm_enso/data/era5.py` — descarga con chunking por bloques (soluciona cost limit de Copernicus)
+- `src/abm_enso/data/simma.py` — encoding tolerante (utf-8-sig → utf-8 → latin-1 → cp1252)
+- `scripts/download_all.py` + `src/abm_enso/cli.py` — flag `--era5-chunk-years` para configurar tamaño de request
+
+### Verificado
+- 35 tests pasando (4 smoke + 11 integración + 21 análisis); 1 skipped sin geopandas
+- Pipeline end-to-end con datos reales: ONI 914 meses, ERA5 528 meses, SIMMA 6826 eventos, Cuencas 231 polígonos
+
+### Pendiente para Fase 4
+- ABM en Mesa (CuencaAgent + ModeloCuencas)
+- Simulación en escenarios ENSO
+- Validación r vs SIMMA 2010-2012
+
+---
+
 ## [0.2.0] — Fase 2 · Pipeline de datos
 
 ### Agregado

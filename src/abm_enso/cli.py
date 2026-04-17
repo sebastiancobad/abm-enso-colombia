@@ -27,6 +27,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_dl.add_argument("--solo", default="oni,era5,sirh,simma,cuencas")
     p_dl.add_argument("--force", action="store_true")
     p_dl.add_argument("--era5-mode", choices=["daily", "monthly"], default="daily")
+    p_dl.add_argument("--era5-chunk-years", type=int, default=5,
+                      help="Años por request ERA5 (default 5, baja a 2-3 si cost limit)")
     p_dl.add_argument("--skip-on-error", action="store_true")
 
     sub.add_parser("calibrate", help="Recalibrar β₁, θ, κ contra SIMMA")
@@ -57,11 +59,17 @@ def main(argv: list[str] | None = None) -> int:
             solo=fuentes,
             force=args.force,
             era5_mode=args.era5_mode,
+            era5_chunk_years=args.era5_chunk_years,
             skip_on_error=args.skip_on_error,
         )
         return 0 if all(ok for ok, _ in results.values()) else 1
 
-    # TODO (Fases 3-5): despachar a los módulos correspondientes
+    if args.command == "calibrate":
+        from abm_enso.pipeline import calibrar_modelo
+        calibrar_modelo()
+        return 0
+
+    # TODO (Fases 4-5): despachar a los módulos correspondientes
     print(f"[abm-enso] comando reconocido: {args.command}")
     print("[abm-enso] implementación pendiente — ver roadmap en README.md")
     return 0

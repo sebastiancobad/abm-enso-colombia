@@ -1,9 +1,9 @@
-﻿"""Tests de integraciÃ³n de la capa `data`.
+"""Tests de integración de la capa `data`.
 
 Estos tests NO hacen llamadas de red reales. Usan:
 - Fixtures locales (SIMMA CSV versionado)
 - Monkeypatching de `requests.get` para ONI/cuencas
-- Skip si las dependencias pesadas no estÃ¡n instaladas
+- Skip si las dependencias pesadas no están instaladas
 """
 
 from __future__ import annotations
@@ -68,7 +68,7 @@ def test_oni_parse_noaa_ascii():
     assert len(df) == 13
     assert df["oni"].min() < 0
     assert df["oni"].max() > 0
-    # Sanity: valores dentro del rango fÃ­sico ENSO
+    # Sanity: valores dentro del rango físico ENSO
     assert df["oni"].abs().max() < 5
 
 
@@ -82,7 +82,7 @@ def test_oni_download_usa_cache(tmp_data_dir, monkeypatch):
 
     # Cualquier llamada a requests.get debe fallar el test
     def _mock_get(*a, **kw):
-        raise AssertionError("No deberÃ­a llamar a la red cuando hay cache")
+        raise AssertionError("No debería llamar a la red cuando hay cache")
     monkeypatch.setattr("requests.get", _mock_get)
 
     result = oni.download(out_path=paths.ONI_CSV, force=False)
@@ -118,9 +118,9 @@ def test_simma_fallback_a_local_cuando_sgc_falla(tmp_data_dir, monkeypatch):
     import requests
 
     # Crear fallback local
-    paths.SIMMA_CSV.write_text(encoding="utf-8", data=
-        "Tipo movimiento,Fecha evento,Departamento,Municipio,Longitud (Â°)\n"
-        "Deslizamiento,2023-01-15,BOYACÃ,TUNJA,-73.36\n"
+    paths.SIMMA_CSV.write_text(
+        "Tipo movimiento,Fecha evento,Departamento,Municipio,Longitud (°)\n"
+        "Deslizamiento,2023-01-15,BOYACÁ,TUNJA,-73.36\n"
     )
 
     # Mock de requests.get que lanza ConnectionError
@@ -133,12 +133,12 @@ def test_simma_fallback_a_local_cuando_sgc_falla(tmp_data_dir, monkeypatch):
 
 
 def test_simma_load_normaliza_nombres(tmp_data_dir):
-    """Corrige 'CUNDINAMA RCA' â†’ 'CUNDINAMARCA' y normaliza columnas."""
+    """Corrige 'CUNDINAMA RCA' → 'CUNDINAMARCA' y normaliza columnas."""
     from abm_enso.data import simma
     from abm_enso.utils import paths
 
-    paths.SIMMA_CSV.write_text(encoding="utf-8", data=
-        "Tipo movimiento,Fecha evento,Departamento,Longitud (Â°)\n"
+    paths.SIMMA_CSV.write_text(
+        "Tipo movimiento,Fecha evento,Departamento,Longitud (°)\n"
         "Deslizamiento,2023-01-15,CUNDINAMA RCA,-74.0\n"
         "Flujo,2015-03-10,MAGDALEN A,-74.5\n"
     )
@@ -157,8 +157,8 @@ def test_simma_load_filtra_por_tipo_y_anio(tmp_data_dir):
     from abm_enso.data import simma
     from abm_enso.utils import paths
 
-    paths.SIMMA_CSV.write_text(encoding="utf-8", data=
-        "Tipo movimiento,Fecha evento,Departamento,Longitud (Â°)\n"
+    paths.SIMMA_CSV.write_text(
+        "Tipo movimiento,Fecha evento,Departamento,Longitud (°)\n"
         "Deslizamiento,2010-10-15,ANTIOQUIA,-75.0\n"
         "Flujo,2015-03-10,CAUCA,-76.0\n"
         "Deslizamiento,2023-01-15,BOYACA,-73.0\n"
@@ -172,7 +172,7 @@ def test_simma_load_filtra_por_tipo_y_anio(tmp_data_dir):
 
 
 # ==========================================================
-# ERA5 (sin tocar xarray si no estÃ¡)
+# ERA5 (sin tocar xarray si no está)
 # ==========================================================
 def test_era5_load_lee_consolidado_existente(tmp_data_dir):
     """Si existe el CSV consolidado, lo lee directamente sin tocar NetCDF."""
@@ -232,8 +232,7 @@ def test_pipeline_descarga_fuente_desconocida():
 
 
 def test_pipeline_lista_de_fuentes_disponibles():
-    """Las 5 fuentes estÃ¡n registradas y en el orden esperado."""
+    """Las 5 fuentes están registradas y en el orden esperado."""
     from abm_enso.pipeline import FUENTES_DISPONIBLES
 
     assert FUENTES_DISPONIBLES == ("oni", "era5", "sirh", "simma", "cuencas")
-

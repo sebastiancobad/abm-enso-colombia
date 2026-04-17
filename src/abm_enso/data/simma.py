@@ -1,6 +1,6 @@
-﻿"""Inventario SIMMA â€” Servicio GeolÃ³gico Colombiano.
+"""Inventario SIMMA — Servicio Geológico Colombiano.
 
-Estrategia hÃ­brida: primero intenta descargar el CSV oficial del SGC (con
+Estrategia híbrida: primero intenta descargar el CSV oficial del SGC (con
 lat+lon reales), y si falla usa el CSV PDF-extract que viene versionado
 en ``data/raw/Resultados_SIMMA.csv``.
 
@@ -35,7 +35,7 @@ HUB_GEOJSON_URL: Final[str] = (
     "312c8792ddb24954a9d2711bd89d1afe_0.geojson"
 )
 
-# Nombres partidos tÃ­picos del PDF-extract
+# Nombres partidos típicos del PDF-extract
 _NAME_FIXES: Final[dict[str, str]] = {
     "CUNDINAMA RCA": "CUNDINAMARCA",
     "MAGDALEN A":    "MAGDALENA",
@@ -50,8 +50,8 @@ def download(
 ) -> Path:
     """Descarga el CSV oficial SGC con lat+lon reales.
 
-    Si el endpoint pÃºblico falla, conserva el CSV PDF-extract ya versionado
-    y lo renombra explÃ­citamente para que el usuario sepa cuÃ¡l tiene.
+    Si el endpoint público falla, conserva el CSV PDF-extract ya versionado
+    y lo renombra explícitamente para que el usuario sepa cuál tiene.
 
     Args:
         force: re-descargar aunque exista un CSV SGC oficial previo
@@ -112,9 +112,13 @@ def load(
         ``departamento``, ``municipio``, ``vereda``, ``longitud``,
         ``latitud`` (si disponible), ``total_danos``.
     """
-    # Preferir el SGC oficial si estÃ¡
-    sgc_path = _paths.SIMMA_CSV.with_suffix(".sgc.csv")
-    csv_path = sgc_path if sgc_path.exists() else _paths.SIMMA_CSV
+    # El CSV PDF-extract tiene fecha/depto; el SGC oficial es minimalista.
+    # Por eso priorizamos el PDF-extract siempre que exista.
+    csv_path = _paths.SIMMA_CSV
+    if not csv_path.exists():
+        sgc_path = _paths.SIMMA_CSV.with_suffix(".sgc.csv")
+        if sgc_path.exists():
+            csv_path = sgc_path
 
     if not csv_path.exists():
         if auto_download:
@@ -125,7 +129,16 @@ def load(
                 "Corre `simma.download()`."
             )
 
-    df = _leer_csv_tolerante(csv_path)
+    # Lectura tolerante a distintos encodings colombianos (utf-8-sig, utf-8, latin-1, cp1252)
+    df = None
+    for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+        try:
+            df = pd.read_csv(csv_path, encoding=enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    if df is None:
+        raise UnicodeDecodeError("utf-8", b"", 0, 1, f"Ningún encoding funcionó para {csv_path}")
     df = _normalizar_columnas(df)
     df = _aplicar_fixes(df)
 
@@ -144,10 +157,10 @@ def load(
 def _normalizar_columnas(df: pd.DataFrame) -> pd.DataFrame:
     """Unifica nombres entre el CSV PDF-extract y el CSV oficial del SGC.
 
-    Los headers oficiales del SGC estÃ¡n en MAYÃšSCULAS_SIN_TILDES
+    Los headers oficiales del SGC están en MAYÚSCULAS_SIN_TILDES
     (ej. ``TIPO_MOV``, ``FECHA_EVENTO``, ``LATITUD``, ``LONGITUD``).
     El PDF-extract tiene espacios y acentos (ej. ``Tipo movimiento``,
-    ``Longitud (Â°)``).
+    ``Longitud (°)``).
     """
     renames = {
         # PDF-extract style
@@ -156,9 +169,9 @@ def _normalizar_columnas(df: pd.DataFrame) -> pd.DataFrame:
         "Departamento":              "departamento",
         "Municipio":                 "municipio",
         "Vereda":                    "vereda",
-        "Longitud (Â°)":              "longitud",
-        "Latitud (Â°)":               "latitud",
-        "Total de daÃ±os":            "total_danos",
+        "Longitud (°)":              "longitud",
+        "Latitud (°)":               "latitud",
+        "Total de daños":            "total_danos",
         "Tipo movimiento (detalle)": "tipo_detalle",
         "Subtipo movimiento":        "subtipo",
         # SGC official style
@@ -170,6 +183,12 @@ def _normalizar_columnas(df: pd.DataFrame) -> pd.DataFrame:
         "LONGITUD":      "longitud",
         "LATITUD":       "latitud",
         "TOTAL_DANOS":   "total_danos",
+        # SGC open-data (ArcGIS Hub) style
+        "Tipo_Movimiento":    "tipo_movimiento",
+        "Subtipo_Movimiento": "subtipo",
+        "Subtipo_nombre":     "subtipo_detalle",
+        "x":                  "longitud",
+        "y":                  "latitud",
     }
     df = df.rename(columns={k: v for k, v in renames.items() if k in df.columns})
     if "fecha_evento" in df.columns:
@@ -178,20 +197,7 @@ def _normalizar_columnas(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _aplicar_fixes(df: pd.DataFrame) -> pd.DataFrame:
-    """Corrige nombres partidos del PDF-extract (`CUNDINAMA RCA` â†’ `CUNDINAMARCA`)."""
+    """Corrige nombres partidos del PDF-extract (`CUNDINAMA RCA` → `CUNDINAMARCA`)."""
     if "departamento" in df.columns:
         df["departamento"] = df["departamento"].replace(_NAME_FIXES)
     return df
-def _leer_csv_tolerante(csv_path):
-    """Lee un CSV probando mÃºltiples encodings comunes en datos colombianos."""
-    import pandas as pd
-    for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
-        try:
-            return pd.read_csv(csv_path, encoding=enc)
-        except UnicodeDecodeError:
-            continue
-    raise UnicodeDecodeError(
-        "utf-8", b"", 0, 1,
-        f"NingÃºn encoding comÃºn funcionÃ³ para {csv_path}"
-    )
-

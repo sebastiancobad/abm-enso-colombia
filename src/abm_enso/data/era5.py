@@ -58,23 +58,31 @@ def download(
     year_start: int = YEAR_START,
     year_end: int = YEAR_END,
     force: bool = False,
+    chunk_years: int = 5,
 ) -> tuple[Path, Path]:
-    """Descarga ERA5-Land desde Copernicus CDS.
+    """Descarga ERA5-Land desde Copernicus CDS en chunks para evitar el límite de costo.
 
     Args:
         mode: ``"monthly"`` es rápido (~15 MB), ``"daily"`` permite
               re-agregar a distintas resoluciones (~150 MB, ~30 min).
         year_start, year_end: rango inclusivo
         force: re-descargar aunque los archivos existan
+        chunk_years: años por request (5 años daily ≈ 30 MB, seguro bajo el límite).
+                     Si Copernicus rechaza con "cost limits exceeded", baja este número.
 
     Returns:
-        (path_flujos, path_estado) — dos NetCDF por separación de stepType.
+        (path_flujos, path_estado) — dos NetCDF concatenados.
 
     Nota sobre el stepType:
         Copernicus entrega dos NetCDF distintos cuando se piden variables
         con ``stepType`` diferente:
           - ``avgad``: acumulaciones promediadas (tp, ro)
           - ``avgua``: estado instantáneo promediado (swvl1)
+
+    Nota sobre el chunking:
+        El modo daily con rango completo 1981-2024 excede el límite de costo
+        de Copernicus (~50k elementos por request). Lo dividimos en bloques
+        de ``chunk_years`` años y concatenamos al final con xarray.
     """
     ensure_dirs()
 
@@ -83,32 +91,72 @@ def download(
 
     # Import perezoso: cdsapi solo si realmente se descarga
     import cdsapi
+    import xarray as xr
 
     client = cdsapi.Client()
 
-    base_request = {
-        "product_type": "monthly_averaged_reanalysis" if mode == "monthly" else "reanalysis",
-        "year":         [str(y) for y in range(year_start, year_end + 1)],
-        "month":        [f"{m:02d}" for m in range(1, 13)],
-        "time":         "00:00",
-        "data_format":  "netcdf",
-        "area":         COLOMBIA_AREA_ERA5,  # [N, W, S, E]
-    }
-
-    if mode == "daily":
-        base_request["day"] = [f"{d:02d}" for d in range(1, 32)]
-
     dataset = DATASET_MONTHLY if mode == "monthly" else DATASET_DAILY
+    tmp_dir = _paths.DATA_RAW / "_era5_chunks"
+    tmp_dir.mkdir(exist_ok=True)
 
-    # Request 1: flujos (tp + ro)
-    req_flujos = {**base_request, "variable": list(_VARIABLES_FLUJO)}
-    client.retrieve(dataset, req_flujos, str(_paths.ERA5_NC_FLUJOS))
+    chunks_flujos: list[Path] = []
+    chunks_estado: list[Path] = []
 
-    # Request 2: estado (swvl1)
-    req_estado = {**base_request, "variable": list(_VARIABLES_ESTADO)}
-    client.retrieve(dataset, req_estado, str(_paths.ERA5_NC_ESTADO))
+    # Iterar en bloques de chunk_years años
+    for y0 in range(year_start, year_end + 1, chunk_years):
+        y1 = min(y0 + chunk_years - 1, year_end)
+        print(f"[era5] bloque {y0}-{y1}...")
+
+        base_request = {
+            "product_type": "monthly_averaged_reanalysis" if mode == "monthly" else "reanalysis",
+            "year":         [str(y) for y in range(y0, y1 + 1)],
+            "month":        [f"{m:02d}" for m in range(1, 13)],
+            "time":         "00:00",
+            "data_format":  "netcdf",
+            "area":         COLOMBIA_AREA_ERA5,
+        }
+        if mode == "daily":
+            base_request["day"] = [f"{d:02d}" for d in range(1, 32)]
+
+        # Chunk de flujos
+        out_f = tmp_dir / f"flujos_{y0}_{y1}.nc"
+        if not out_f.exists() or force:
+            req_flujos = {**base_request, "variable": list(_VARIABLES_FLUJO)}
+            client.retrieve(dataset, req_flujos, str(out_f))
+        chunks_flujos.append(out_f)
+
+        # Chunk de estado
+        out_e = tmp_dir / f"estado_{y0}_{y1}.nc"
+        if not out_e.exists() or force:
+            req_estado = {**base_request, "variable": list(_VARIABLES_ESTADO)}
+            client.retrieve(dataset, req_estado, str(out_e))
+        chunks_estado.append(out_e)
+
+    # Concatenar los chunks con xarray y guardar los NetCDF finales
+    print("[era5] concatenando chunks...")
+    _concatenar_nc(chunks_flujos, _paths.ERA5_NC_FLUJOS)
+    _concatenar_nc(chunks_estado, _paths.ERA5_NC_ESTADO)
 
     return _paths.ERA5_NC_FLUJOS, _paths.ERA5_NC_ESTADO
+
+
+def _concatenar_nc(chunks: list[Path], out_path: Path) -> None:
+    """Concatena NetCDFs temporales a lo largo del eje temporal y guarda el resultado."""
+    import xarray as xr
+
+    time_dim = None
+    datasets = []
+    for chunk_path in sorted(chunks):
+        ds = xr.open_dataset(chunk_path)
+        if time_dim is None:
+            time_dim = "valid_time" if "valid_time" in ds.coords else "time"
+        datasets.append(ds)
+
+    merged = xr.concat(datasets, dim=time_dim)
+    merged = merged.sortby(time_dim)
+    merged.to_netcdf(out_path)
+    for ds in datasets:
+        ds.close()
 
 
 # ==========================================================

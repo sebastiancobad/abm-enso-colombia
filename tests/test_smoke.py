@@ -11,7 +11,7 @@ from __future__ import annotations
 def test_paquete_importa():
     import abm_enso
 
-    assert abm_enso.__version__ == "0.2.0"
+    assert abm_enso.__version__ == "0.3.0"
 
 
 def test_subpaquetes_importan():
