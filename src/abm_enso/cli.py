@@ -36,11 +36,17 @@ def _build_parser() -> argparse.ArgumentParser:
     p_sim = sub.add_parser("simulate", help="Correr el ABM de cuencas")
     p_sim.add_argument(
         "--scenario",
-        default="nina-2010",
-        choices=["nina-2010", "nino-2015", "neutro", "custom"],
+        default="historico",
+        choices=["nina-2010", "nino-2015", "neutro", "historico", "lorenz"],
     )
-    p_sim.add_argument("--meses", type=int, default=60)
-    p_sim.add_argument("--replicas", type=int, default=30)
+    p_sim.add_argument("--meses", type=int, default=36)
+    p_sim.add_argument("--replicas", type=int, default=1,
+                       help="Número de réplicas Monte Carlo (con ruido >0)")
+    p_sim.add_argument("--ruido", type=float, default=0.0,
+                       help="Std del ruido estocástico en P(t) (fracción de climatología)")
+    p_sim.add_argument("--seed", type=int, default=42)
+    p_sim.add_argument("--validar", action="store_true",
+                       help="Validar resultados vs SIMMA 2010-2012 (solo escenario historico)")
 
     sub.add_parser("viz", help="Abrir la app Solara (tipo NetLogo)")
 
@@ -69,7 +75,19 @@ def main(argv: list[str] | None = None) -> int:
         calibrar_modelo()
         return 0
 
-    # TODO (Fases 4-5): despachar a los módulos correspondientes
+    if args.command == "simulate":
+        from abm_enso.pipeline import simular_escenario
+        simular_escenario(
+            scenario=args.scenario,
+            n_meses=args.meses,
+            replicas=args.replicas,
+            ruido=args.ruido,
+            seed=args.seed,
+            validar=args.validar,
+        )
+        return 0
+
+    # TODO (Fase 5): despachar al servidor Solara
     print(f"[abm-enso] comando reconocido: {args.command}")
     print("[abm-enso] implementación pendiente — ver roadmap en README.md")
     return 0

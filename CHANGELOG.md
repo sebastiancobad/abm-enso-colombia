@@ -7,6 +7,36 @@ y el versionado sigue [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.4.0] — Fase 4 · ABM en Mesa
+
+### Agregado
+- `src/abm_enso/model/agente.py` — `CuencaAgent` con scheduler simultáneo (compute/apply en dos fases)
+- `src/abm_enso/model/modelo.py` — `ModeloCuencas` con β₁ por área hidrográfica, ruido estocástico opcional, reproducibilidad vía seed
+- `src/abm_enso/model/escenarios.py` — generadores de forzamiento ONI: nina-2010, nino-2015, neutro, historico, lorenz, custom
+- `src/abm_enso/model/validacion.py` — métricas r/RMSE/F1 contra SIMMA 2010-2012
+- `src/abm_enso/pipeline.py` — función `simular_escenario()`
+- `src/abm_enso/cli.py` — subcomando `abm-enso simulate` funcional con flags `--scenario`, `--meses`, `--replicas`, `--ruido`, `--seed`, `--validar`
+- `notebooks/03_simulacion.ipynb` — comparación Niña vs Niño vs neutro + Monte Carlo con 30 réplicas + validación SIMMA
+- `tests/test_model.py` — 19 tests con síntesis en runtime
+
+### Heterogeneidad β₁ por área (respecto a cal. nacional -7.33):
+- Magdalena-Cauca: -9.5
+- Caribe: -8.2
+- Pacífico: -5.8
+- Orinoco: -4.5
+- Amazonas: -2.0
+
+### Verificado
+- 54 tests pasando (+19 de modelo), 1 skipped
+- API Mesa 3.x (AgentSet en vez de schedulers clásicos)
+
+### Pendiente para Fase 5
+- App Solara con mapa interactivo tipo NetLogo
+- Controles play/pause/step, sliders θ/κ/β₁
+- Export GIF/MP4
+
+---
+
 ## [0.3.0] — Fase 3 · Análisis y calibración
 
 ### Agregado

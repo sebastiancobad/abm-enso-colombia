@@ -4,13 +4,15 @@ Estrategia híbrida: primero intenta descargar el CSV oficial del SGC (con
 lat+lon reales), y si falla usa el CSV PDF-extract que viene versionado
 en ``data/raw/Resultados_SIMMA.csv``.
 
+IMPORTANTE: desde abril 2026, el CSV oficial del SGC es *minimalista* —
+solo 13 columnas sin fecha/depto. Por eso, para la carga (`load()`) se
+prioriza siempre el PDF-extract aunque el SGC esté presente.
+
 Endpoints conocidos (abril 2026):
 
 - ArcGIS Hub item: https://datos.sgc.gov.co/datasets/312c8792ddb24954a9d2711bd89d1afe_0
-- Export CSV directo (si disponible):
+- Export CSV directo:
   https://opendata.arcgis.com/datasets/312c8792ddb24954a9d2711bd89d1afe_0.csv
-- FeatureServer REST (siempre funciona si el anterior 404):
-  https://srvags.sgc.gov.co/arcgis/rest/services/.../FeatureServer/0/query
 """
 
 from __future__ import annotations
@@ -24,7 +26,7 @@ import requests
 from abm_enso.utils import paths as _paths
 from abm_enso.utils.paths import ensure_dirs
 
-# Endpoints (orden de prioridad)
+# Endpoints
 HUB_CSV_URL: Final[str] = (
     "https://opendata.arcgis.com/datasets/"
     "312c8792ddb24954a9d2711bd89d1afe_0.csv"
@@ -48,24 +50,16 @@ def download(
     timeout: int = 180,
     verbose: bool = True,
 ) -> Path:
-    """Descarga el CSV oficial SGC con lat+lon reales.
+    """Descarga el CSV oficial SGC.
 
-    Si el endpoint público falla, conserva el CSV PDF-extract ya versionado
-    y lo renombra explícitamente para que el usuario sepa cuál tiene.
-
-    Args:
-        force: re-descargar aunque exista un CSV SGC oficial previo
-        out_path: ruta final. Si es ``None``, usa ``paths.SIMMA_CSV``
-        timeout: segundos antes de abortar
-
-    Returns:
-        Path del CSV disponible (oficial si descarga OK, PDF-extract si no).
+    Si el endpoint público falla, conserva el CSV PDF-extract ya versionado.
+    El CSV del SGC no tiene fecha ni departamento (solo 13 columnas), así
+    que ``load()`` prefiere el PDF-extract independientemente de cuál esté.
     """
     ensure_dirs()
     if out_path is None:
         out_path = _paths.SIMMA_CSV
 
-    # Intento 1: export CSV directo del ArcGIS Hub
     try:
         if verbose:
             print(f"[simma] intentando descarga oficial SGC: {HUB_CSV_URL}")
@@ -94,6 +88,21 @@ def download(
         return _paths.SIMMA_CSV
 
 
+def _leer_csv_tolerante(csv_path: Path) -> pd.DataFrame:
+    """Lee CSV probando varios encodings colombianos comunes."""
+    last_err = None
+    for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+        try:
+            return pd.read_csv(csv_path, encoding=enc)
+        except UnicodeDecodeError as e:
+            last_err = e
+            continue
+    raise UnicodeDecodeError(
+        "utf-8", b"", 0, 1,
+        f"Ningún encoding funcionó para {csv_path} (último: {last_err})"
+    )
+
+
 def load(
     tipo: str | list[str] | None = None,
     anio_min: int | None = None,
@@ -102,65 +111,54 @@ def load(
 ) -> pd.DataFrame:
     """Carga el inventario SIMMA limpio.
 
+    Prioriza siempre el CSV PDF-extract (que tiene fecha/depto) sobre el
+    CSV oficial del SGC (que solo tiene 13 columnas minimalistas).
+
     Args:
         tipo: ``"Deslizamiento"``, ``"Flujo"``, etc. o lista. ``None`` = todos
         anio_min, anio_max: filtro temporal (inclusivo)
-        auto_download: si falta, intenta descargar SGC, cae al CSV local
+        auto_download: si falta todo, intenta descargar SGC
 
     Returns:
-        DataFrame con columnas: ``tipo_movimiento``, ``fecha_evento``,
-        ``departamento``, ``municipio``, ``vereda``, ``longitud``,
-        ``latitud`` (si disponible), ``total_danos``.
+        DataFrame con columnas normalizadas: ``tipo_movimiento``,
+        ``fecha_evento``, ``departamento``, ``municipio``, ``longitud``, etc.
     """
-    # El CSV PDF-extract tiene fecha/depto; el SGC oficial es minimalista.
-    # Por eso priorizamos el PDF-extract siempre que exista.
+    # Prioridad: PDF-extract > SGC oficial (porque el SGC no trae fecha)
     csv_path = _paths.SIMMA_CSV
     if not csv_path.exists():
         sgc_path = _paths.SIMMA_CSV.with_suffix(".sgc.csv")
         if sgc_path.exists():
             csv_path = sgc_path
-
-    if not csv_path.exists():
-        if auto_download:
+        elif auto_download:
             csv_path = download()
         else:
             raise FileNotFoundError(
-                f"No hay CSV SIMMA disponible (ni {sgc_path} ni {_paths.SIMMA_CSV}). "
-                "Corre `simma.download()`."
+                f"No hay CSV SIMMA disponible. Corre `simma.download()`."
             )
 
-    # Lectura tolerante a distintos encodings colombianos (utf-8-sig, utf-8, latin-1, cp1252)
-    df = None
-    for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
-        try:
-            df = pd.read_csv(csv_path, encoding=enc)
-            break
-        except UnicodeDecodeError:
-            continue
-    if df is None:
-        raise UnicodeDecodeError("utf-8", b"", 0, 1, f"Ningún encoding funcionó para {csv_path}")
+    df = _leer_csv_tolerante(csv_path)
     df = _normalizar_columnas(df)
     df = _aplicar_fixes(df)
 
     # Filtros
-    if tipo is not None:
+    if tipo is not None and "tipo_movimiento" in df.columns:
         tipos = [tipo] if isinstance(tipo, str) else list(tipo)
         df = df[df["tipo_movimiento"].isin(tipos)]
-    if anio_min is not None:
+    if anio_min is not None and "fecha_evento" in df.columns:
         df = df[df["fecha_evento"].dt.year >= anio_min]
-    if anio_max is not None:
+    if anio_max is not None and "fecha_evento" in df.columns:
         df = df[df["fecha_evento"].dt.year <= anio_max]
 
     return df.reset_index(drop=True)
 
 
 def _normalizar_columnas(df: pd.DataFrame) -> pd.DataFrame:
-    """Unifica nombres entre el CSV PDF-extract y el CSV oficial del SGC.
+    """Unifica nombres entre distintas versiones del CSV (PDF-extract vs SGC).
 
-    Los headers oficiales del SGC están en MAYÚSCULAS_SIN_TILDES
-    (ej. ``TIPO_MOV``, ``FECHA_EVENTO``, ``LATITUD``, ``LONGITUD``).
-    El PDF-extract tiene espacios y acentos (ej. ``Tipo movimiento``,
-    ``Longitud (°)``).
+    Estilos soportados:
+    - PDF-extract: ``"Tipo movimiento"``, ``"Longitud (°)"``, etc.
+    - SGC legacy: MAYÚSCULAS (``TIPO_MOV``, ``FECHA_EVENTO``)
+    - SGC actual 2026: formato mixto (``Tipo_Movimiento``, ``x``, ``y``)
     """
     renames = {
         # PDF-extract style
@@ -174,7 +172,7 @@ def _normalizar_columnas(df: pd.DataFrame) -> pd.DataFrame:
         "Total de daños":            "total_danos",
         "Tipo movimiento (detalle)": "tipo_detalle",
         "Subtipo movimiento":        "subtipo",
-        # SGC official style
+        # SGC legacy UPPERCASE style
         "TIPO_MOV":      "tipo_movimiento",
         "FECHA_EVENTO":  "fecha_evento",
         "DEPARTAMENTO":  "departamento",
@@ -183,7 +181,7 @@ def _normalizar_columnas(df: pd.DataFrame) -> pd.DataFrame:
         "LONGITUD":      "longitud",
         "LATITUD":       "latitud",
         "TOTAL_DANOS":   "total_danos",
-        # SGC open-data (ArcGIS Hub) style
+        # SGC open-data 2026 (minimalista)
         "Tipo_Movimiento":    "tipo_movimiento",
         "Subtipo_Movimiento": "subtipo",
         "Subtipo_nombre":     "subtipo_detalle",
