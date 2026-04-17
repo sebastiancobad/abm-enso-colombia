@@ -1,0 +1,61 @@
+name: abm-enso
+channels:
+  - conda-forge
+  - nodefaults
+
+dependencies:
+  - python=3.11
+
+  # ----- Core scientific stack -----
+  - numpy>=1.26
+  - pandas>=2.1
+  - scipy>=1.11
+  - matplotlib>=3.8
+  - seaborn>=0.13
+
+  # ----- Geospatial (GDAL/GEOS/PROJ compilados por conda-forge) -----
+  - geopandas>=0.14
+  - shapely>=2.0
+  - rasterio>=1.3
+  - pyproj>=3.6
+  - fiona
+  - gdal
+
+  # ----- Climate data -----
+  - xarray>=2024.1
+  - netCDF4>=1.6
+  - cdsapi>=0.7
+
+  # ----- ABM -----
+  - mesa>=2.3
+
+  # ----- Viz -----
+  - solara>=1.30
+  - plotly>=5.18
+  - ipywidgets>=8.1
+  - pillow>=10.1
+
+  # ----- APIs -----
+  - sodapy>=2.2
+  - requests>=2.31
+
+  # ----- Utilities -----
+  - tqdm>=4.66
+  - pyyaml>=6.0
+
+  # ----- Dev (Jupyter, tests, docs) -----
+  - jupyter>=1.0
+  - jupyterlab>=4.0
+  - pytest>=7.4
+  - pytest-cov>=4.1
+  - ruff>=0.1
+  - mypy>=1.7
+  - mkdocs>=1.5
+  - mkdocs-material>=9.4
+
+  # ----- Lo que conda-forge no tiene, vía pip -----
+  - pip
+  - pip:
+    - mkdocstrings[python]>=0.24
+    - mkdocs-jupyter>=0.24
+    - -e .

@@ -1,10 +1,13 @@
-"""Descarga todas las fuentes de datos (ONI, ERA5, SIRH, SIMMA, cuencas IDEAM).
-
-FASE 1: esqueleto. La lógica real se implementa en Fase 2.
+"""Entry point CLI para descargar todas las fuentes de datos.
 
 Uso:
     python scripts/download_all.py
-    python scripts/download_all.py --solo oni,era5
+    python scripts/download_all.py --solo oni,simma
+    python scripts/download_all.py --force --era5-mode monthly
+    python scripts/download_all.py --skip-on-error
+
+La lógica real vive en ``abm_enso.pipeline.descargar_todas`` para ser
+reutilizable desde el CLI ``abm-enso download``.
 """
 
 from __future__ import annotations
@@ -12,31 +15,25 @@ from __future__ import annotations
 import argparse
 import sys
 
-from abm_enso.utils.paths import ensure_dirs
-
-
-FUENTES_DISPONIBLES = ("oni", "era5", "sirh", "simma", "cuencas")
+from abm_enso.pipeline import FUENTES_DISPONIBLES, descargar_todas
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--solo",
-        default=",".join(FUENTES_DISPONIBLES),
-        help=f"Fuentes a descargar, separadas por coma. Default: todas ({FUENTES_DISPONIBLES})",
-    )
+    parser.add_argument("--solo", default=",".join(FUENTES_DISPONIBLES))
+    parser.add_argument("--force", action="store_true")
+    parser.add_argument("--era5-mode", choices=["daily", "monthly"], default="daily")
+    parser.add_argument("--skip-on-error", action="store_true")
     args = parser.parse_args(argv)
 
-    ensure_dirs()
     fuentes = [f.strip().lower() for f in args.solo.split(",")]
-
-    for fuente in fuentes:
-        if fuente not in FUENTES_DISPONIBLES:
-            print(f"[warn] fuente desconocida: {fuente}  — opciones: {FUENTES_DISPONIBLES}")
-            continue
-        print(f"[todo] descargar fuente: {fuente}  (pendiente Fase 2)")
-
-    return 0
+    results = descargar_todas(
+        solo=fuentes,
+        force=args.force,
+        era5_mode=args.era5_mode,
+        skip_on_error=args.skip_on_error,
+    )
+    return 0 if all(ok for ok, _ in results.values()) else 1
 
 
 if __name__ == "__main__":

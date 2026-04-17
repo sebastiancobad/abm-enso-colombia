@@ -23,7 +23,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("download", help="Descargar todas las fuentes de datos")
+    p_dl = sub.add_parser("download", help="Descargar todas las fuentes de datos")
+    p_dl.add_argument("--solo", default="oni,era5,sirh,simma,cuencas")
+    p_dl.add_argument("--force", action="store_true")
+    p_dl.add_argument("--era5-mode", choices=["daily", "monthly"], default="daily")
+    p_dl.add_argument("--skip-on-error", action="store_true")
+
     sub.add_parser("calibrate", help="Recalibrar β₁, θ, κ contra SIMMA")
 
     p_sim = sub.add_parser("simulate", help="Correr el ABM de cuencas")
@@ -44,7 +49,19 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
-    # TODO (Fases 2-5): despachar a los módulos correspondientes
+    if args.command == "download":
+        from abm_enso.pipeline import descargar_todas
+
+        fuentes = [f.strip().lower() for f in args.solo.split(",")]
+        results = descargar_todas(
+            solo=fuentes,
+            force=args.force,
+            era5_mode=args.era5_mode,
+            skip_on_error=args.skip_on_error,
+        )
+        return 0 if all(ok for ok, _ in results.values()) else 1
+
+    # TODO (Fases 3-5): despachar a los módulos correspondientes
     print(f"[abm-enso] comando reconocido: {args.command}")
     print("[abm-enso] implementación pendiente — ver roadmap en README.md")
     return 0

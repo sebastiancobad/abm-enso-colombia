@@ -36,10 +36,24 @@ Conda resuelve los binarios GDAL/GEOS sin necesidad de compilar.
 
 ## Paso 3 — Instalar el paquete
 
-Para uso normal:
+### Opción recomendada (Windows/macOS/Linux): conda con `environment.yml`
+
+Esta es **la forma más robusta** de instalar, especialmente en Windows, porque conda-forge trae binarios pre-compilados de GDAL, GEOS y PROJ:
+
+```bash
+conda env create -f environment.yml
+conda activate abm-enso
+```
+
+Esto instala todo (paquete + dependencias geoespaciales + Jupyter + herramientas de desarrollo) de una sola vez.
+
+### Opción alternativa: pip puro
+
+Para uso normal (solo runtime):
 
 ```bash
 pip install -r requirements.txt
+pip install -e . --no-deps
 ```
 
 Para desarrollo (incluye pytest, ruff, mkdocs, jupyter):
@@ -47,6 +61,8 @@ Para desarrollo (incluye pytest, ruff, mkdocs, jupyter):
 ```bash
 pip install -e ".[dev]"
 ```
+
+> **Nota Windows:** pip puro suele fallar compilando `rasterio`/`gdal`. Si falla, usa la opción conda.
 
 ## Paso 4 — Configurar credenciales Copernicus CDS
 
