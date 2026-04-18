@@ -4,7 +4,7 @@
 
 - Poveda, G. (2004). *La hidroclimatología de Colombia: una síntesis desde la escala inter-decadal hasta la escala diurna.* Rev. Acad. Colomb. Cienc. 28(107):201–222.
 - Hoyos, N., Escobar, J., Restrepo, J. C., Arango, A. M., & Ortiz, J. C. (2013). *Impact of the 2010–2011 La Niña phenomenon in Colombia, South America.* Applied Geography 39:16–25.
-- Cortés, J. & Woyann, C. L. (2015). *Climate change and ENSO variability in Colombia.* Climatic Change 129:329–342.
+- * Poveda, G., Álvarez, D. M. & Rueda, Ó. A. (2011). *Hydro-climatic variability over the Andes of Colombia associated with ENSO: a review of climatic processes and their impact on one of the Earth's most important biodiversity hotspots.* Climate Dynamics 36:2233–2249.
 
 ## Oscilador de Lorenz y ENSO
 
